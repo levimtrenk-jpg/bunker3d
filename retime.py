@@ -1,10 +1,10 @@
 import sys, json, re, soundfile as sf, scipy.signal as sg
 sys.path.insert(0, '/root/vo2/tools'); import humanize as H
 SP = 1.06                                   # the final narration is sped up by this
-VO = json.load(open('/root/vo13/vo.json'))
+VO = json.load(open('/root/vo14/vo.json'))
 words = []                                  # (abs_time, word) on the pre-speed timeline
 for l in VO['lines']:
-    x, sr = sf.read(f"/root/vo13/lines/l{l['i']:02d}.wav", dtype='float32')
+    x, sr = sf.read(f"/root/vo14/lines/l{l['i']:02d}.wav", dtype='float32')
     x = x if x.ndim == 1 else x[:, 0]
     for s, e, w in H.words_of(sg.resample_poly(x, 16000, sr).astype('float32')):
         words.append((l['t'] + s, w, l['i']))

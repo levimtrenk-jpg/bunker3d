@@ -206,12 +206,12 @@ export function build(VW, VH, cam, SS = Number(globalThis.RQ_SS || 0.55)) {
 
   // ============ CEILING: two bays + exposed rebar at the cut ==============
   const gRoof = G('roof');
-  const slabH = W.slabTop - W.slabBot, slabY = (W.slabTop + W.slabBot) / 2;
+  const slabH = (W.slabTop + 0.06) - W.slabBot, slabY = ((W.slabTop + 0.06) + W.slabBot) / 2;   // top sits above the grass plane
   const roofM = fit(M.conc, 11.3, ZD, 7.0, '#d9d6cf');
   const HX = -2.8, HZ = -4.3, HS = 0.6;                                         // entry riser: centre and half-width of the opening
   const Z0S = W.z0 - 0.04, Z1S = W.z1 + 0.04;                                   // slab z extent
-  bx(gRoof, (HX - HS) - (-5.85), slabH, Z1S - Z0S, ((-5.85) + HX - HS) / 2, slabY, (Z0S + Z1S) / 2, roofM, 0.04);
-  bx(gRoof, 5.85 - (HX + HS), slabH, Z1S - Z0S, (5.85 + HX + HS) / 2, slabY, (Z0S + Z1S) / 2, roofM, 0.04);
+  bx(gRoof, (HX - HS) - (-5.95), slabH, Z1S - Z0S, ((-5.95) + HX - HS) / 2, slabY, (Z0S + Z1S) / 2, roofM, 0.04);
+  bx(gRoof, 5.95 - (HX + HS), slabH, Z1S - Z0S, (5.95 + HX + HS) / 2, slabY, (Z0S + Z1S) / 2, roofM, 0.04);
   bx(gRoof, HS * 2, slabH, (HZ - HS) - Z0S, HX, slabY, (Z0S + HZ - HS) / 2, roofM, 0.04);
   bx(gRoof, HS * 2, slabH, Z1S - (HZ + HS), HX, slabY, (Z1S + HZ + HS) / 2, roofM, 0.04);
   {                                                                             // a barrel vault under the slab: the shape real shelters use
@@ -219,16 +219,15 @@ export function build(VW, VH, cam, SS = Number(globalThis.RQ_SS || 0.55)) {
     const R0 = (span * span / 4 + rise * rise) / (2 * rise);                     // radius of a segmental arch
     const half = Math.asin(span / 2 / R0);
     const sp = new THREE.Shape();
-    const cyY = W.slabBot - R0;                                                  // arc centre below the crown, so it bows upward
+    const cyY = W.slabBot + 0.05 - R0;                                                  // arc centre below the crown, so it bows upward
     for (let i = 0; i <= 28; i++) { const a2 = -half + (i / 28) * half * 2; const x = Math.sin(a2) * R0, y = cyY + Math.cos(a2) * R0; i ? sp.lineTo(x, y) : sp.moveTo(x, y); }
     for (let i = 28; i >= 0; i--) { const a2 = -half + (i / 28) * half * 2; const r2 = R0 + thick; sp.lineTo(Math.sin(a2) * r2, cyY + Math.cos(a2) * r2); }
     sp.closePath();
-    for (const [zs, dz] of [[W.z0, (HZ - HS) - W.z0], [HZ + HS, W.z1 - (HZ + HS)]]) {   // flat soffit in the hatch bay
-      const v = new THREE.Mesh(new THREE.ExtrudeGeometry(sp, { depth: dz, bevelEnabled: false, curveSegments: 4 }), fit(M.concIn, span, dz, 7.0, '#cfccc4'));
-      v.position.set(0, 0, zs); v.castShadow = v.receiveShadow = true; gRoof.add(v);
-    }
-    for (const zz of [HZ - HS, HZ + HS])                                        // edge beams framing the bay
-      bx(gRoof, span, 0.3, 0.14, 0, W.slabBot - 0.15, zz, fit(M.concIn, span, 0.3, 7.0, '#cfccc4'), 0.02);
+    // The barrel vault is gone: a real blast-shelter ceiling is a flat reinforced slab, and the
+    // arch left a wedge-shaped void against the slab's underside that read as a bright gap.
+    bx(gRoof, span, 0.16, ZD, 0, W.slabBot - 0.08, ZC, fit(M.concIn, span, ZD, 7.0, '#cfccc4'), 0.02);   // soffit
+    for (let i = 0; i < 9; i++)                                                 // downstand ribs, cast with the slab
+      bx(gRoof, 0.22, 0.26, ZD, -5.0 + i * 1.25, W.slabBot - 0.26, ZC, fit(M.concIn, 0.3, ZD, 7.0, '#cbc8c0'), 0.02);
   }
   for (let i = 0; i < 3; i++) {                                                  // a few bars showing at the cut edge only
     const r = cyl(gRoof, 0.035, 0.035, 0.8, W.px1 - 0.55 + i * 0.2, W.slabBot - 0.02, -0.22, M.rebar, 7);
@@ -442,8 +441,9 @@ export function build(VW, VH, cam, SS = Number(globalThis.RQ_SS || 0.55)) {
     gr.rotation.x = -Math.PI / 2; gr.position.set(0, 0.3, W.z0 - 210); gr.receiveShadow = true; gLand.add(gr);
     for (const sx of [-1, 1]) {                                                  // grass on the block top, left and right of the pit
       const wgr = 290, cx = sx * (5.9 + wgr / 2);
-      const sideL = new THREE.Mesh(new THREE.PlaneGeometry(wgr, ZD, 1, 1), fit(M.grass, wgr, ZD, 3.0));
-      sideL.rotation.x = -Math.PI / 2; sideL.position.set(cx, 0.302, ZC); sideL.receiveShadow = true; gLand.add(sideL);
+      const gm = fit(M.grass, wgr, ZD, 3.0); gm.side = THREE.DoubleSide;   // seen from just below, a one-sided plane shows sky through it
+      const sideL = new THREE.Mesh(new THREE.PlaneGeometry(wgr, ZD, 1, 1), gm);
+      sideL.rotation.x = -Math.PI / 2; sideL.position.set(cx, 0.296, ZC); sideL.receiveShadow = true; gLand.add(sideL);
     }
   }
   {
@@ -559,6 +559,20 @@ export function build(VW, VH, cam, SS = Number(globalThis.RQ_SS || 0.55)) {
     bx(ho, 1.0, 1.0, 0.1, x - 0.4, 2.9, 2.54, plain(0x7ea2b8, 0.16, 0.1), 0.02);
     bx(ho, 1.12, 0.1, 0.14, x - 0.4, 2.9, 2.57, M.woodDk, 0.03);
     bx(ho, 0.1, 1.12, 0.14, x - 0.4, 2.9, 2.57, M.woodDk, 0.03);
+  }
+
+  // ============ BLAST WAVE over the sealed mound ==========================
+  const gWave = G('wave');
+  {
+    const wm = new THREE.MeshBasicMaterial({ color: 0xfff1d6, transparent: true, opacity: 0.5, side: THREE.DoubleSide, depthWrite: false, fog: false });
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(1, 0.07, 8, 56), wm);
+    ring.rotation.x = Math.PI / 2; ring.position.set(-2.0, 1.45, -2.6); ring.name = 'ring'; gWave.add(ring);
+    const dm = plain(0x9c8f78, 0.98);
+    for (let i = 0; i < 70; i++) {
+      const a2 = R() * TAU, r2 = 1 + R() * 5;
+      const d = sph(gWave, 0.07 + R() * 0.13, -2.0 + Math.cos(a2) * r2, 0.45 + R() * 0.5, -2.6 + Math.sin(a2) * r2 * 0.6, dm, 6);
+      d.userData = { a: a2, r: r2, up: 0.4 + R() * 1.4 };
+    }
   }
 
   // ============ WINTER: rain, water on the floor =========================

@@ -50674,12 +50674,12 @@ void main() {
       for (let i = -3; i <= 3; i++) bx(gSump, 1.2, 0.05, 0.05, 3.6, W.floor + 0.06, -1.5 + i * 0.14, M.steelD, 0.012);
     }
     const gRoof = G("roof");
-    const slabH = W.slabTop - W.slabBot, slabY = (W.slabTop + W.slabBot) / 2;
+    const slabH = W.slabTop + 0.06 - W.slabBot, slabY = (W.slabTop + 0.06 + W.slabBot) / 2;
     const roofM = fit(M.conc, 11.3, ZD, 7, "#d9d6cf");
     const HX = -2.8, HZ = -4.3, HS = 0.6;
     const Z0S = W.z0 - 0.04, Z1S = W.z1 + 0.04;
-    bx(gRoof, HX - HS - -5.85, slabH, Z1S - Z0S, (-5.85 + HX - HS) / 2, slabY, (Z0S + Z1S) / 2, roofM, 0.04);
-    bx(gRoof, 5.85 - (HX + HS), slabH, Z1S - Z0S, (5.85 + HX + HS) / 2, slabY, (Z0S + Z1S) / 2, roofM, 0.04);
+    bx(gRoof, HX - HS - -5.95, slabH, Z1S - Z0S, (-5.95 + HX - HS) / 2, slabY, (Z0S + Z1S) / 2, roofM, 0.04);
+    bx(gRoof, 5.95 - (HX + HS), slabH, Z1S - Z0S, (5.95 + HX + HS) / 2, slabY, (Z0S + Z1S) / 2, roofM, 0.04);
     bx(gRoof, HS * 2, slabH, HZ - HS - Z0S, HX, slabY, (Z0S + HZ - HS) / 2, roofM, 0.04);
     bx(gRoof, HS * 2, slabH, Z1S - (HZ + HS), HX, slabY, (Z1S + HZ + HS) / 2, roofM, 0.04);
     {
@@ -50687,7 +50687,7 @@ void main() {
       const R0 = (span * span / 4 + rise * rise) / (2 * rise);
       const half = Math.asin(span / 2 / R0);
       const sp2 = new Shape();
-      const cyY = W.slabBot - R0;
+      const cyY = W.slabBot + 0.05 - R0;
       for (let i = 0; i <= 28; i++) {
         const a2 = -half + i / 28 * half * 2;
         const x = Math.sin(a2) * R0, y = cyY + Math.cos(a2) * R0;
@@ -50699,14 +50699,9 @@ void main() {
         sp2.lineTo(Math.sin(a2) * r2, cyY + Math.cos(a2) * r2);
       }
       sp2.closePath();
-      for (const [zs, dz] of [[W.z0, HZ - HS - W.z0], [HZ + HS, W.z1 - (HZ + HS)]]) {
-        const v = new Mesh(new ExtrudeGeometry(sp2, { depth: dz, bevelEnabled: false, curveSegments: 4 }), fit(M.concIn, span, dz, 7, "#cfccc4"));
-        v.position.set(0, 0, zs);
-        v.castShadow = v.receiveShadow = true;
-        gRoof.add(v);
-      }
-      for (const zz of [HZ - HS, HZ + HS])
-        bx(gRoof, span, 0.3, 0.14, 0, W.slabBot - 0.15, zz, fit(M.concIn, span, 0.3, 7, "#cfccc4"), 0.02);
+      bx(gRoof, span, 0.16, ZD, 0, W.slabBot - 0.08, ZC, fit(M.concIn, span, ZD, 7, "#cfccc4"), 0.02);
+      for (let i = 0; i < 9; i++)
+        bx(gRoof, 0.22, 0.26, ZD, -5 + i * 1.25, W.slabBot - 0.26, ZC, fit(M.concIn, 0.3, ZD, 7, "#cbc8c0"), 0.02);
     }
     for (let i = 0; i < 3; i++) {
       const r = cyl(gRoof, 0.035, 0.035, 0.8, W.px1 - 0.55 + i * 0.2, W.slabBot - 0.02, -0.22, M.rebar, 7);
@@ -51004,9 +50999,11 @@ void main() {
       gLand.add(gr);
       for (const sx of [-1, 1]) {
         const wgr = 290, cx = sx * (5.9 + wgr / 2);
-        const sideL = new Mesh(new PlaneGeometry(wgr, ZD, 1, 1), fit(M.grass, wgr, ZD, 3));
+        const gm = fit(M.grass, wgr, ZD, 3);
+        gm.side = DoubleSide;
+        const sideL = new Mesh(new PlaneGeometry(wgr, ZD, 1, 1), gm);
         sideL.rotation.x = -Math.PI / 2;
-        sideL.position.set(cx, 0.302, ZC);
+        sideL.position.set(cx, 0.296, ZC);
         sideL.receiveShadow = true;
         gLand.add(sideL);
       }
@@ -51159,6 +51156,21 @@ void main() {
       bx(ho, 1, 1, 0.1, x - 0.4, 2.9, 2.54, plain(8299192, 0.16, 0.1), 0.02);
       bx(ho, 1.12, 0.1, 0.14, x - 0.4, 2.9, 2.57, M.woodDk, 0.03);
       bx(ho, 0.1, 1.12, 0.14, x - 0.4, 2.9, 2.57, M.woodDk, 0.03);
+    }
+    const gWave = G("wave");
+    {
+      const wm = new MeshBasicMaterial({ color: 16773590, transparent: true, opacity: 0.5, side: DoubleSide, depthWrite: false, fog: false });
+      const ring = new Mesh(new TorusGeometry(1, 0.07, 8, 56), wm);
+      ring.rotation.x = Math.PI / 2;
+      ring.position.set(-2, 1.45, -2.6);
+      ring.name = "ring";
+      gWave.add(ring);
+      const dm = plain(10260344, 0.98);
+      for (let i = 0; i < 70; i++) {
+        const a2 = R() * TAU2, r2 = 1 + R() * 5;
+        const d = sph(gWave, 0.07 + R() * 0.13, -2 + Math.cos(a2) * r2, 0.45 + R() * 0.5, -2.6 + Math.sin(a2) * r2 * 0.6, dm, 6);
+        d.userData = { a: a2, r: r2, up: 0.4 + R() * 1.4 };
+      }
     }
     const gRain = G("rain");
     for (let i = 0; i < 260; i++) {

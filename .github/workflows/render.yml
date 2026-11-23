@@ -8,7 +8,13 @@ on:
         default: '18'
       quality:
         description: render quality (ss = 3-D buffer scale)
-        default: '0.25'
+        default: '0.45'
+      from:
+        description: start second (blank = start of film)
+        default: ''
+      to:
+        description: end second (blank = end of film)
+        default: ''
 
 jobs:
   split:
@@ -54,8 +60,10 @@ jobs:
         run: |
           N=${{ github.event.inputs.segments }}
           read FROM TO < <(node -e "
-            const n=${N:-9}, D=require('./score.js').DURATION, i=${{ matrix.seg }};
-            const a=D/n*i, b=i===n-1?D:D/n*(i+1);
+            const n=${N:-9}, i=${{ matrix.seg }};
+            const T0=parseFloat('${{ github.event.inputs.from }}'||'0');
+            const T1=parseFloat('${{ github.event.inputs.to }}'||'0')||require('./score.js').DURATION;
+            const D=T1-T0, a=T0+D/n*i, b=i===n-1?T1:T0+D/n*(i+1);
             console.log(a.toFixed(3), b.toFixed(3));
           ")
           echo \"slice ${{ matrix.seg }}: $FROM .. $TO\"

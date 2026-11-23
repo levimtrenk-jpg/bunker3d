@@ -85,8 +85,8 @@
     [ev.blastIn,       [-12.0, 2.2, 15], [-6.6, -1.0, -2.2], 46], // it is still a hole
     [ev.filter,        [-11.5, -3.0, 12],[-6.4, -5.4, -2.2], 46], // the valve and the blower
     [ev.collapse,      [-3, 6.0, 19],    [-10.5, 1.6, -3], 46],  // the house comes down
-    [ev.tunnel,        [10.5, -5.0, 10], [10.8, -6.2, -2.2], 44],// digging the tunnel
-    [ev.exit2,         [19, 1.0, 15],    [15.8, -3.0, -2.2], 42],// the shaft, far out
+    [ev.tunnel,        [5.2, -6.1, -2.25], [16.3, -5.5, -2.25], 54], // straight down the tunnel, daylight at the far shaft// digging the tunnel
+    [ev.exit2,         [20.5, -0.6, 18], [16.0, -3.2, -2.2], 44],// the shaft, far out
     [ev.rain,          [10, 4.0, 19],    [0.4, 0.4, -3],   46], // winter: rain over the plot
     [ev.rain + 4.6,    [6, -2.4, 12],    [1.0, -6.0, -2.4], 46], // and water on the floor inside
     [ev.sump,          [5.6, -4.6, 7],   [3.6, -7.0, -1.5], 40], // the sump
@@ -211,6 +211,15 @@
     // --- interior and the person ----------------------------------------
     vis(P.interior, t >= ev.ceiling + 0.4); if (P.interior.visible) riseIn(P.interior, t, ev.ceiling + 0.4, 0.8, 2);
     vis(P.comfort, t >= ev.comfort); if (P.comfort.visible) riseIn(P.comfort, t, ev.comfort, 0.9, 2);
+    const wv = t - (ev.doorNeed + 3.6);                                 // the pressure arrives while he names it
+    vis(P.wave, wv > -0.1 && wv < 2.6);
+    if (P.wave.visible) {
+      const u = clamp(wv / 1.9), e = 1 - Math.pow(1 - u, 2.2);
+      P.wave.children.forEach((m) => {
+        if (m.name === 'ring') { m.scale.setScalar(0.4 + e * 9); m.material.opacity = 0.55 * (1 - u); }
+        else { const d = m.userData; m.position.set(-2.0 + Math.cos(d.a) * (d.r + e * 7), 0.5 + d.up * e * 2.2, -2.6 + Math.sin(d.a) * (d.r + e * 7) * 0.6); m.scale.setScalar(Math.max(0.02, 1 - u * 0.7)); }
+      });
+    }
     vis(P.sump, t >= ev.sump); if (P.sump.visible) riseIn(P.sump, t, ev.sump, 0.8, 1.5);
     // --- winter: rain outside, water creeping over the floor, the pump taking it away
     const rainOn = t >= ev.rain - 0.6 && t < ev.pump + 3.0;
@@ -357,7 +366,7 @@
   // ---------- numbers that count up, with the riser under them ------------
   const COUNT = [
     [ev.dig + 1.1,     1.5, 7,  'מטר',    'עומק הבור',    [-1.2, -3.6, -0.6], 0, -250],
-    [ev.ceiling + 0.8, 1.4, 30, 'ס"מ',    'בטון מזוין',   [0, 0.12, -0.6],    0, -260],
+    [ev.ceiling + 0.8, 1.4, 70, 'ס"מ',    'בטון מזוין',   [0, 0.12, -0.6],    0, -260],
     [ev.soil + 1.0,    1.2, 1,  'מטר',    'אדמה מעל הגג', [0, 1.5, -1.6],     0,  210],
     [ev.door + 1.5,    1.4, 70, 'ס"מ',    'קוטר המכסה',   [-2.8, 1.72, -4.3], 0, -250],
     [ev.lock + 0.4,    0.9, 3,  'בריחים', 'נעילה',        [-2.8, 1.45, -4.3], 250, -150],
