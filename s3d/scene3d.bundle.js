@@ -50541,6 +50541,9 @@ void main() {
     sun.shadow.bias = -5e-4;
     sun.shadow.normalBias = 0.035;
     scene.add(sun);
+    const rim = new DirectionalLight(13623541, 0.75);
+    rim.position.set(-20, 9, -26);
+    scene.add(rim);
     const fill2 = new DirectionalLight(10469608, 0.3);
     fill2.position.set(-20, 10, 22);
     scene.add(fill2);
@@ -50774,9 +50777,9 @@ void main() {
         const a2 = i / 16 * TAU2;
         sph(gEnt, 0.04, HX + Math.cos(a2) * (rOut - 0.14), RT + 0.015, HZ + Math.sin(a2) * (rOut - 0.14), steelD2, 7);
       }
-      const rim = tor(gEnt, rOut + 0.02, 0.1, HX, RT - 0.06, HZ, outM, 10, 36);
-      rim.rotation.x = Math.PI / 2;
-      rim.castShadow = rim.receiveShadow = true;
+      const rim2 = tor(gEnt, rOut + 0.02, 0.1, HX, RT - 0.06, HZ, outM, 10, 36);
+      rim2.rotation.x = Math.PI / 2;
+      rim2.castShadow = rim2.receiveShadow = true;
       const apron = cyl(gEnt, rOut + 0.12, rOut + 0.55, 0.3, HX, 0.9, HZ, fit(M.soil2, 2.4, 0.6, 2.4, "#e7dccd"), 28);
       apron.receiveShadow = true;
     }

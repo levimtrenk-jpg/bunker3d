@@ -85,6 +85,10 @@ export function build(VW, VH, cam, SS = Number(globalThis.RQ_SS || 0.55)) {
   Object.assign(sun.shadow.camera, { left: -32, right: 32, top: 32, bottom: -32, near: 1, far: 110 });
   sun.shadow.camera.updateProjectionMatrix(); sun.shadow.bias = -0.0005; sun.shadow.normalBias = 0.035;
   scene.add(sun);
+  // IBL tried and dropped: we already have a sky dome + hemisphere fill, so an environment map
+  // double-counted the ambient and threw a blue cast over every shaded surface.
+  const rim = new THREE.DirectionalLight(0xcfe0f5, 0.75);          // rim light: separates the structure from the ground
+  rim.position.set(-20, 9, -26); scene.add(rim);
   const fill = new THREE.DirectionalLight(0x9fc0e8, 0.3); fill.position.set(-20, 10, 22); scene.add(fill);
 
   const M = {
