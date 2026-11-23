@@ -1,0 +1,37 @@
+name: fetch-sfx
+# Runs on GitHub's machines, which have the open internet our sandbox lacks.
+# Pulls CC0 (public-domain) sound effects, converts them, and commits them to sfxlib/cc0/.
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: list = discover what exists; fetch = download the chosen set
+        default: list
+permissions:
+  contents: write
+jobs:
+  sfx:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg jq unzip
+      - name: discover
+        if: github.event.inputs.mode == 'list'
+        run: |
+          mkdir -p sfxlib/cc0
+          {
+            echo "## archive.org SSE items"
+            curl -s "https://archive.org/advancedsearch.php?q=identifier%3ASSE_Library*&fl%5B%5D=identifier&fl%5B%5D=title&rows=200&output=json" \
+              | jq -r '.response.docs[] | "\(.identifier)\t\(.title)"'
+            echo; echo "## opengameart 100 cc0 sfx 2 — zip links"
+            curl -sL "https://opengameart.org/content/100-cc0-sfx-2" | grep -oE 'https://opengameart.org/sites/default/files/[^"]+\.(zip|ogg|wav)' | sort -u
+            echo; echo "## opengameart 100 cc0 sfx (1) — zip links"
+            curl -sL "https://opengameart.org/content/100-cc0-sfx" | grep -oE 'https://opengameart.org/sites/default/files/[^"]+\.(zip|ogg|wav)' | sort -u
+            echo; echo "## bigsoundbank sample page"
+            curl -sL "https://bigsoundbank.com/urban-works-1-s3526.html" | grep -oE 'href="[^"]+\.(mp3|wav|ogg|flac)"' | head
+          } > sfxlib/cc0/DISCOVERY.txt
+          cat sfxlib/cc0/DISCOVERY.txt
+      - name: commit
+        run: |
+          git config user.name "sfx-bot"; git config user.email "sfx-bot@users.noreply.github.com"
+          git add sfxlib/cc0 && git commit -m "sfx: ${{ github.event.inputs.mode }}" && git push || echo "nothing new"
