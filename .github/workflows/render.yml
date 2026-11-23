@@ -1,0 +1,88 @@
+name: render
+
+on:
+  workflow_dispatch:
+    inputs:
+      segments:
+        description: how many machines to split the film across
+        default: '9'
+      quality:
+        description: render quality (ss = 3-D buffer scale)
+        default: '0.25'
+
+jobs:
+  split:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.plan.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '22' }
+      - id: plan
+        run: |
+          N=${{ github.event.inputs.segments }}
+          echo "matrix=$(node -e "
+            const n=${N:-9}, D=require('./score.js').DURATION;
+            console.log(JSON.stringify([...Array(n).keys()]));
+          ")" >> $GITHUB_OUTPUT
+
+  render:
+    needs: split
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        seg: ${{ fromJson(needs.split.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '22' }
+      - name: tools
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg flac
+          google-chrome --version || true
+          nproc
+      - name: sound
+        run: |
+          mkdir -p out
+          ffmpeg -v error -y -i audio/vo.flac out/vo.wav
+          node song.js
+      - name: render this slice
+        env:
+          RQ: ss=${{ github.event.inputs.quality }}&ao=0
+        run: |
+          N=${{ github.event.inputs.segments }}
+          read FROM TO < <(node -e "
+            const n=${N:-9}, D=require('./score.js').DURATION, i=${{ matrix.seg }};
+            const a=D/n*i, b=i===n-1?D:D/n*(i+1);
+            console.log(a.toFixed(3), b.toFixed(3));
+          ")
+          echo \"slice ${{ matrix.seg }}: $FROM .. $TO\"
+          node engine/render.js clip $FROM $TO
+          mv out/clip_*.mp4 "out/part-$(printf %02d ${{ matrix.seg }}).mp4"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: part-${{ matrix.seg }}
+          path: out/part-*.mp4
+          retention-days: 3
+
+  join:
+    needs: render
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with: { path: parts, merge-multiple: true }
+      - name: join the slices
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
+          ls -la parts
+          for f in $(ls parts/part-*.mp4 | sort); do echo "file '$PWD/$f'" >> list.txt; done
+          cat list.txt
+          ffmpeg -v error -y -f concat -safe 0 -i list.txt -c copy bunker3d.mp4
+          ffprobe -v error -show_entries format=duration,size -of default=nw=1 bunker3d.mp4
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bunker3d
+          path: bunker3d.mp4
+          retention-days: 14

@@ -1,0 +1,421 @@
+// Detailed 3D cutaway of a shelter, following the professional checklist:
+// bevel every edge, assemble surfaces from parts (lifts, courses, joints),
+// procedural PBR (albedo + normal + roughness + AO), IBL + sun, GTAO, ACES.
+import * as THREE from 'three';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { SMAAPass } from 'three/addons/postprocessing/SMAAPass.js';
+import * as TEX from './tex.js';
+
+const TAU = Math.PI * 2;
+const R = TEX.rng(20261122);
+
+// ---- geometry helpers: nothing gets a razor-sharp edge ---------------------
+const rbGeo = (w, h, d, r) => new RoundedBoxGeometry(w, h, d, 2, r ?? Math.min(w, h, d) * 0.07);
+function bx(g, w, h, d, x, y, z, mat, r) {
+  const m = new THREE.Mesh(rbGeo(w, h, d, r), mat);
+  m.position.set(x, y, z); m.castShadow = m.receiveShadow = true; g.add(m); return m;
+}
+function cyl(g, rt, rb, h, x, y, z, mat, seg = 20) {
+  const m = new THREE.Mesh(new THREE.CylinderGeometry(rt, rb, h, seg), mat);
+  m.position.set(x, y, z); m.castShadow = m.receiveShadow = true; g.add(m); return m;
+}
+function tor(g, r, t, x, y, z, mat, seg = 10, rad = 24) {
+  const m = new THREE.Mesh(new THREE.TorusGeometry(r, t, seg, rad), mat);
+  m.position.set(x, y, z); m.castShadow = m.receiveShadow = true; g.add(m); return m;
+}
+function sph(g, r, x, y, z, mat, s = 18) {
+  const m = new THREE.Mesh(new THREE.SphereGeometry(r, s, Math.max(6, s * 0.7 | 0)), mat);
+  m.position.set(x, y, z); m.castShadow = m.receiveShadow = true; g.add(m); return m;
+}
+const plain = (c, ro = 0.9, me = 0) => new THREE.MeshStandardMaterial({ color: c, roughness: ro, metalness: me });
+
+// ---- world (metres, y up, the cut face looks toward +z) --------------------
+export const W = {
+  px0: -5, px1: 5, wall: 0.62, floor: -7.2,
+  slabTop: -0.35, slabBot: -1.05,
+  entX: -8.6, ventX: 6.7, exitX: 9.6,
+  z0: -7.0, z1: 0,                      // the cutaway plane is z = 0
+  rz0: -5.4,                            // inner face of the back wall
+};
+const ZD = W.z1 - W.z0, ZC = (W.z0 + W.z1) / 2;   // depth / centre of the block
+
+export function build(VW, VH, cam, SS = Number(globalThis.RQ_SS || 0.55)) {
+  const RW = Math.round(VW * SS), RH = Math.round(VH * SS);
+  const renderer = new THREE.WebGLRenderer({ antialias: false, preserveDrawingBuffer: true });
+  renderer.setSize(RW, RH, false);
+  renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.0;
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+
+  const _rnd = Math.random; let _s = 123456789;
+  Math.random = () => { _s = (_s * 1664525 + 1013904223) >>> 0; return _s / 4294967296; };
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0xc9d9ea);
+  scene.fog = new THREE.Fog(0xc9d9ea, 52, 125);
+
+  const pmrem = new THREE.PMREMGenerator(renderer);          // IBL, no network
+  scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+  scene.environmentIntensity = 0.5;
+  scene.add(new THREE.HemisphereLight(0xdcecff, 0x8a6a46, 0.5));
+  const sun = new THREE.DirectionalLight(0xfff0d8, 2.7);
+  sun.position.set(17, 31, 25); sun.castShadow = true; sun.shadow.mapSize.set(1024, 1024);
+  Object.assign(sun.shadow.camera, { left: -32, right: 32, top: 32, bottom: -32, near: 1, far: 110 });
+  sun.shadow.camera.updateProjectionMatrix(); sun.shadow.bias = -0.0005; sun.shadow.normalBias = 0.035;
+  scene.add(sun);
+  const fill = new THREE.DirectionalLight(0xbfd4ee, 0.45); fill.position.set(-20, 10, 22); scene.add(fill);
+
+  const M = {
+    conc: TEX.concrete({ rep: [2, 2] }),
+    concIn: TEX.concrete({ rep: [2.4, 1.6], tint: '#a8a49a', wet: 1 }),
+    soil: TEX.soilFace({ rep: [2.2, 1], size: 768 }),
+    soil2: TEX.soilFace({ rep: [1.6, 1], seed: 12, size: 768 }),
+    grass: TEX.grass({ rep: [7, 7] }),
+    wood: TEX.wood({ rep: [1.5, 1] }),
+    woodDk: TEX.wood({ rep: [1, 1], tint: [106, 72, 42], boards: 4 }),
+    steel: TEX.metal({ rep: [1, 1], base: '#4f6c7c' }),
+    steelD: TEX.metal({ rep: [2, 1], base: '#6a7076', rust: 0.9 }),
+    burlap: TEX.burlap({ rep: [1.4, 1] }),
+    plaster: TEX.plaster({ rep: [2, 1.4] }),
+    rebar: plain(0x8b5b39, 0.72, 0.5),
+    dark: plain(0x2b2f34, 0.95),
+  };
+
+  // A 20 m slab and a 1 m box must not share one UV scale. Cache clones by size.
+  const _fc = new Map();
+  const fit = (mat, w, h, unit = 3.2, tint) => {
+    const rx = Math.max(0.5, Math.round(w / unit * 2) / 2), ry = Math.max(0.5, Math.round(h / unit * 2) / 2);
+    const key = mat.uuid + '|' + rx + '|' + ry + '|' + (tint || '');
+    let m = _fc.get(key);
+    if (!m) {
+      m = mat.clone();
+      for (const k of ['map', 'normalMap', 'roughnessMap', 'aoMap']) if (m[k]) { m[k] = m[k].clone(); m[k].needsUpdate = true; m[k].repeat.set(rx, ry); }
+      if (tint) m.color = new THREE.Color(tint);
+      _fc.set(key, m);
+    }
+    return m;
+  };
+
+  const root = new THREE.Group(); scene.add(root);
+  const P = {};
+  const G = (n) => { const g = new THREE.Group(); P[n] = g; root.add(g); return g; };
+
+  // ============ GROUND: strata as separate slabs, ragged cut face =========
+  const gEarth = G('earth');
+  const strata = [[0, -1.1, '#efe4d6'], [-1.1, -3.0, '#e4d6c4'], [-3.0, -5.6, '#d8c6b0'], [-5.6, -9.2, '#cdb9a2'], [-9.2, -13.5, '#c0ab93']];
+  // Columns of ground. yTop < 0 leaves an open slot above — that is how the
+  // entrance trench, the vent channel and the escape shaft stay visible.
+  const column = (x0, x1, yTop) => {
+    strata.forEach(([y0, y1], i) => {
+      if (y0 > yTop) y0 = yTop; if (y1 >= y0) return;
+      const jig = 0.06 + R() * 0.22, h = y0 - y1, w = x1 - x0;
+      bx(gEarth, w, h, ZD - jig, (x0 + x1) / 2, y1 + h / 2, ZC - jig / 2, fit(i % 2 ? M.soil2 : M.soil, w, h, 4.2, strata[i][2]), 0.03);
+    });
+    if (yTop > -0.05) bx(gEarth, x1 - x0, 0.3, ZD, (x0 + x1) / 2, 0.15, ZC, fit(M.grass, x1 - x0, ZD, 3.0), 0.04);
+  };
+  const SOLID = [[-27, -8.78], [5.62, 6.22], [7.18, 8.5], [10.75, 27]];
+  const SLOTS = [[-8.78, -5.62, -7.2], [6.22, 7.18, -7.7], [8.5, 10.75, -7.5]];
+  for (const [a, b] of SOLID) column(a, b, 0);
+  for (const [a, b, y] of SLOTS) column(a, b, y);
+  column(W.px0 - W.wall, W.px1 + W.wall, W.floor - 0.56);        // soil under the shelter
+  for (let i = 0; i < 140; i++) {                                // grass tufts, on solid ground only
+    const x = -26 + R() * 52;
+    if (!SOLID.some(([a, b]) => x > a + 0.2 && x < b - 0.2)) continue;
+    const t = new THREE.Mesh(new THREE.ConeGeometry(0.08 + R() * 0.07, 0.28 + R() * 0.34, 5),
+      plain(new THREE.Color().setHSL(0.22 + R() * 0.07, 0.42, 0.25 + R() * 0.14)));
+    t.position.set(x, 0.44, W.z0 + 0.3 + R() * (ZD - 0.6)); t.rotation.z = (R() - 0.5) * 0.55; t.castShadow = true; gEarth.add(t);
+  }
+  for (let i = 0; i < 34; i++) {
+    const x = -25 + R() * 50; if (!SOLID.some(([a, b]) => x > a && x < b)) continue;
+    sph(gEarth, 0.1 + R() * 0.22, x, 0.33, W.z0 + R() * ZD, plain(0x8f8a80, 0.92), 8).scale.y = 0.55;
+  }
+
+  // ============ PIT: walls poured in three lifts ==========================
+  const gPit = G('pit');
+  const wallH = Math.abs(W.floor - W.slabBot), lifts = 3, lh = wallH / lifts;
+  const wallLifts = (x, z, w, d) => {
+    for (let i = 0; i < lifts; i++) bx(gPit, w, lh - 0.035, d, x, W.floor + lh * (i + 0.5), z, fit(i === lifts - 1 ? M.conc : M.concIn, Math.max(w, d), lh, 2.6), 0.035);
+  };
+  wallLifts(W.px0 + W.wall / 2, ZC, W.wall, ZD);
+  wallLifts(W.px1 - W.wall / 2, ZC, W.wall, ZD);
+  wallLifts(0, W.rz0 - W.wall / 2, 11.3, W.wall);                              // back wall
+  bx(gPit, 11.3, 0.55, ZD, 0, W.floor - 0.27, ZC, fit(M.conc, 11.3, ZD, 2.6), 0.04);   // floor slab
+  cyl(gPit, 0.3, 0.3, 0.12, 2.3, W.floor + 0.02, -1.4, M.steelD, 16);          // floor drain
+  for (let i = -2; i <= 2; i++) bx(gPit, 0.5, 0.05, 0.05, 2.3, W.floor + 0.08, -1.4 + i * 0.1, M.steelD, 0.012);
+
+  // ============ CEILING: two bays + exposed rebar at the cut ==============
+  const gRoof = G('roof');
+  const slabH = W.slabTop - W.slabBot, slabY = (W.slabTop + W.slabBot) / 2;
+  const roofM = fit(M.conc, 11.3, ZD / 2, 2.6);
+  bx(gRoof, 11.3, slabH, ZD / 2 - 0.06, 0, slabY, W.z0 + ZD * 0.25, roofM, 0.04);   // bay 1
+  bx(gRoof, 11.3, slabH, ZD / 2 - 0.06, 0, slabY, W.z0 + ZD * 0.75, roofM, 0.04);   // bay 2, joint between
+  for (let i = 0; i < 9; i++) { const b = cyl(gRoof, 0.045, 0.045, 11.1, 0, W.slabBot + 0.19, W.z0 + 0.5 + i * 0.78, M.rebar, 8); b.rotation.z = Math.PI / 2; }
+  for (let i = 0; i < 8; i++) { const b = cyl(gRoof, 0.04, 0.04, ZD - 0.3, -4.9 + i * 1.4, W.slabBot + 0.31, ZC, M.rebar, 8); b.rotation.x = Math.PI / 2; }
+  const chip = new THREE.Mesh(new THREE.DodecahedronGeometry(0.4, 0), M.conc);   // chipped corner at the cut
+  chip.position.set(W.px1 - 0.28, W.slabBot - 0.06, -0.5); chip.castShadow = true; gRoof.add(chip);
+  for (let i = 0; i < 3; i++) { const r = cyl(gRoof, 0.038, 0.038, 0.95, W.px1 - 0.5 + i * 0.17, W.slabBot - 0.04, -0.3, M.rebar, 7); r.rotation.x = 1.15; r.rotation.z = 0.18 * i; }
+
+  // ============ EARTH COVER over the roof =================================
+  const gCap = G('soilcap');
+  const berm = (hw, hh, mat, yOff) => {                     // a berm profile extruded along z
+    const sp2 = new THREE.Shape(); sp2.moveTo(-hw, 0);
+    for (let i = 0; i <= 40; i++) { const t = i / 40, x = -hw + t * hw * 2; sp2.lineTo(x, Math.cos(t * Math.PI - Math.PI / 2) * 0 + Math.sin(t * Math.PI) ** 1.4 * hh); }
+    sp2.lineTo(hw, 0); sp2.closePath();
+    const m = new THREE.Mesh(new THREE.ExtrudeGeometry(sp2, { depth: ZD, bevelEnabled: true, bevelThickness: 0.06, bevelSize: 0.06, bevelSegments: 2, curveSegments: 6 }), mat);
+    m.rotation.y = 0; m.position.set(0, 0.25 + yOff, W.z0); m.castShadow = m.receiveShadow = true; gCap.add(m); return m;
+  };
+  berm(6.72, 1.36, fit(M.soil, 14, ZD, 4.2, '#efe4d6'), 0);       // earth core, strictly inside the grass skin
+  const capG = berm(6.82, 1.46, fit(M.grass, 14, ZD - 0.05, 3.0), 0); capG.position.z += 0.03; capG.castShadow = false;  // skin: no coplanar faces
+  for (let i = 0; i < 40; i++) {
+    const x = (R() - 0.5) * 13, t = Math.abs(x) / 6.8;
+    const s = sph(gCap, 0.09 + R() * 0.2, x, 0.3 + Math.sin((1 - t) * Math.PI / 2) ** 1.4 * 1.45, W.z0 + 0.3 + R() * (ZD - 0.6), plain(0x948e81, 0.95), 7);
+    s.scale.y = 0.55;
+  }
+
+  // ============ BLAST DOOR + entrance shaft (90° turn) ====================
+  const gEnt = G('entrance');
+  const TX0 = -8.78, TX1 = -5.62, TY = -7.0;
+  bx(gEnt, 0.42, 7.4, ZD, TX0 - 0.2, TY / 2, ZC, fit(M.concIn, ZD, 7.4, 2.6), 0.03);   // trench wall
+  bx(gEnt, TX1 - TX0, 0.4, ZD, (TX0 + TX1) / 2, TY - 0.2, ZC, fit(M.conc, TX1 - TX0, ZD, 2.6), 0.03);   // trench floor
+  bx(gEnt, TX1 - TX0 + 0.6, 0.35, 0.5, (TX0 + TX1) / 2, 0.3, W.z0 + 0.25, M.conc, 0.04);
+  const NS = 9, run = 0.55, rise = 0.72;              // flight runs along z, facing the cut
+  for (let i = 0; i < NS; i++) {
+    const top = -0.4 - i * rise, h = top - (TY - 0.2);
+    bx(gEnt, 2.3, h, run, (TX0 + TX1) / 2 - 0.3, top - h / 2, W.z0 + 0.5 + i * run, fit(M.concIn, 2.3, h, 2.0), 0.02);
+  }
+  bx(gEnt, TX1 - TX0, 0.3, ZD - 0.3, (TX0 + TX1) / 2, TY + 0.05, ZC, fit(M.conc, TX1 - TX0, ZD, 2.6), 0.03);  // landing
+  const gDoor = G('door');
+  const door = new THREE.Group(); door.position.set(W.px0 - 0.1, TY + 1.62, -1.9); door.rotation.y = Math.PI; gDoor.add(door);
+  bx(door, 0.16, 3.3, 2.3, -0.17, 0, 0, M.steelD, 0.04);                       // frame
+  bx(door, 0.3, 2.9, 1.95, 0, 0, 0, fit(M.steel, 2.0, 2.9, 2.2), 0.05);        // leaf
+  for (let i = 0; i < 14; i++) { const a = i / 14 * TAU; sph(door, 0.05, 0.16, Math.cos(a) * 1.28, Math.sin(a) * 0.82, M.steelD, 8); }
+  for (const y of [-1.0, 0, 1.0]) cyl(door, 0.12, 0.12, 0.44, 0.02, y, -0.92, M.steelD, 12).rotation.z = Math.PI / 2;
+  tor(door, 0.4, 0.07, 0.21, -0.1, 0.1, M.steelD, 9, 24).rotation.y = Math.PI / 2;
+  for (let i = 0; i < 4; i++) { const s2 = cyl(door, 0.045, 0.045, 0.8, 0.21, -0.1, 0.1, M.steelD, 7); s2.rotation.z = Math.PI / 2; s2.rotation.x = i * Math.PI / 4; }
+  cyl(door, 0.09, 0.09, 0.28, 0.27, -0.1, 0.1, M.steelD, 10).rotation.z = Math.PI / 2;
+  bx(door, 0.1, 0.15, 0.44, 0.17, 0.88, 0.1, M.dark, 0.02);
+  const trLight = new THREE.PointLight(0xffe3bd, 9, 11, 2);   // daylight bouncing into the trench
+  trLight.position.set(-6.9, -3.6, -1.2); gDoor.add(trLight);
+  const gBags = G('sandbags');
+  for (let row = 0; row < 3; row++) for (let i = 0; i < 4 - row; i++) {
+    const b = sph(gBags, 0.46, TX0 - 3.1 + i * 0.84 + row * 0.42, 0.44 + row * 0.4, W.z0 + 1.1, M.burlap, 12);
+    b.scale.set(1.08, 0.5, 0.72); b.rotation.y = (R() - 0.5) * 0.45;
+  }
+
+  // ============ VENT: pipe, flanges, 90° bend, filter, blower, cowl =======
+  const gVent = G('vent');
+  cyl(gVent, 0.3, 0.3, 7.4, W.ventX, -3.3, -2.2, M.steelD, 20);
+  for (const y of [-6.5, -4.5, -2.5, -0.6]) {
+    tor(gVent, 0.33, 0.07, W.ventX, y, -2.2, M.steelD, 8, 18).rotation.x = Math.PI / 2;
+    for (let i = 0; i < 6; i++) { const a = i / 6 * TAU; sph(gVent, 0.042, W.ventX + Math.cos(a) * 0.37, y, -2.2 + Math.sin(a) * 0.37, M.steelD, 6); }
+  }
+  const bend = new THREE.Mesh(new THREE.TorusGeometry(0.78, 0.3, 14, 18, Math.PI / 2), M.steelD);
+  bend.position.set(W.ventX - 0.78, 0.6, -2.2); bend.rotation.z = Math.PI / 2; bend.castShadow = true; gVent.add(bend);
+  cyl(gVent, 0.3, 0.3, 2.2, W.ventX - 1.85, 1.38, -2.2, M.steelD, 20).rotation.z = Math.PI / 2;
+  const cowl = new THREE.Mesh(new THREE.ConeGeometry(0.5, 0.5, 18), M.steelD);
+  cowl.position.set(W.ventX - 3.15, 1.38, -2.2); cowl.rotation.z = Math.PI / 2; cowl.castShadow = true; gVent.add(cowl);
+  for (let i = 0; i < 4; i++) bx(gVent, 0.05, 0.4, 0.4, W.ventX - 3.0 + i * 0.07, 1.38, -2.2, M.dark, 0.012);
+  bx(gVent, 1.5, 1.9, 1.3, W.ventX - 0.12, -5.6, -2.2, M.steel, 0.08);           // filter housing
+  for (let i = 0; i < 4; i++) { const a = i / 4 * TAU + 0.78; sph(gVent, 0.065, W.ventX - 0.12 + Math.cos(a) * 0.63, -5.6 + Math.sin(a) * 0.82, -1.56, M.steelD, 7); }
+  for (let i = 0; i < 7; i++) bx(gVent, 1.05, 0.07, 0.06, W.ventX - 0.12, -6.15 + i * 0.17, -1.6, M.dark, 0.014);
+  cyl(gVent, 0.55, 0.55, 0.7, W.ventX - 1.35, -5.6, -2.2, M.steel, 18).rotation.z = Math.PI / 2;   // blower
+  cyl(gVent, 0.22, 0.22, 0.5, W.ventX - 1.9, -5.6, -2.2, plain(0x25282c, 0.85), 14).rotation.z = Math.PI / 2;
+  bx(gVent, 0.8, 0.32, 0.32, W.ventX - 2.3, -6.35, -2.2, M.dark, 0.04);
+  cyl(gVent, 0.26, 0.26, 2.3, W.ventX - 2.5, -5.6, -2.2, M.steelD, 16).rotation.z = Math.PI / 2;
+
+  // ============ EMERGENCY EXIT: lined shaft + ladder + hatch ==============
+  const gExit = G('exit');
+  const shm = M.concIn.clone(); shm.side = THREE.BackSide;
+  const shaft = new THREE.Mesh(new THREE.CylinderGeometry(1.05, 1.05, 7.4, 28, 1, true), shm);
+  shaft.position.set(W.exitX, -3.5, -2.0); shaft.receiveShadow = true; gExit.add(shaft);
+  const ring = tor(gExit, 1.15, 0.22, W.exitX, 0.2, -2.0, M.conc, 10, 26); ring.rotation.x = Math.PI / 2;
+  for (const dz of [-0.42, 0.42]) cyl(gExit, 0.055, 0.055, 7.2, W.exitX - 0.82, -3.5, -2.0 + dz, M.steelD, 9);
+  for (let i = 0; i < 15; i++) { const r = cyl(gExit, 0.048, 0.048, 0.84, W.exitX - 0.82, -6.8 + i * 0.46, -2.0, M.steelD, 7); r.rotation.x = Math.PI / 2; }
+  const hatch = bx(gExit, 2.5, 0.2, 2.5, W.exitX, 0.5, -2.0, M.steelD, 0.06); hatch.rotation.y = 0.28;
+  for (let i = 0; i < 10; i++) { const a = i / 10 * TAU; sph(gExit, 0.065, W.exitX + Math.cos(a) * 1.02, 0.62, -2.0 + Math.sin(a) * 1.02, M.steelD, 7); }
+
+  // ============ INTERIOR =================================================
+  const gIn = G('interior');
+  const fy = W.floor;
+  const bunk = new THREE.Group(); bunk.position.set(-2.7, 0, -3.9); gIn.add(bunk);
+  for (const [x, z] of [[-1.6, -0.75], [-1.6, 0.75], [1.6, -0.75], [1.6, 0.75]]) cyl(bunk, 0.07, 0.07, 3.0, x, fy + 1.5, z, M.steelD, 9);
+  for (const y of [fy + 0.56, fy + 2.0]) {
+    bx(bunk, 3.4, 0.1, 1.7, 0, y, 0, M.steelD, 0.03);
+    bx(bunk, 3.2, 0.26, 1.5, 0, y + 0.18, 0, plain(0x6d7a86, 0.95), 0.1);
+    bx(bunk, 0.78, 0.2, 0.5, -1.1, y + 0.33, 0, plain(0xd9d3c5, 0.95), 0.08);
+  }
+  const sh = new THREE.Group(); sh.position.set(3.1, 0, -4.1); gIn.add(sh);
+  for (const z of [-1.25, 1.25]) cyl(sh, 0.05, 0.05, 2.5, 0.55, fy + 2.0, z, M.steelD, 8);
+  for (const y of [fy + 1.3, fy + 2.1, fy + 2.9]) {
+    bx(sh, 1.3, 0.07, 2.6, 0, y, 0, M.wood, 0.02);
+    for (let i = 0; i < 5; i++) {
+      if (R() > 0.78) continue;
+      const z = -1.0 + i * 0.5;
+      if (R() > 0.45) {
+        cyl(sh, 0.16, 0.16, 0.42, 0, y + 0.25, z, plain(new THREE.Color().setHSL(R(), 0.5, 0.45), 0.45, 0.55), 14);
+        cyl(sh, 0.164, 0.164, 0.14, 0, y + 0.25, z, plain(0xf2efe6, 0.65), 14);
+      } else bx(sh, 0.44, 0.38, 0.4, 0, y + 0.23, z, plain(new THREE.Color().setHSL(0.07 + R() * 0.1, 0.38, 0.5), 0.9), 0.03);
+    }
+  }
+  bx(gIn, 1.0, 0.9, 1.0, 3.4, fy + 0.45, -1.5, M.woodDk, 0.04);
+  bx(gIn, 1.0, 0.9, 1.0, 3.4, fy + 1.35, -1.55, M.woodDk, 0.04).rotation.y = 0.28;
+  bx(gIn, 0.62, 0.84, 0.36, 2.2, fy + 0.42, -0.8, plain(0x4a6b3f, 0.78), 0.07);   // jerrycan
+  bx(gIn, 0.3, 0.09, 0.09, 2.2, fy + 0.88, -0.8, plain(0x3b5633, 0.82), 0.03);
+  cyl(gIn, 0.09, 0.09, 0.1, 2.05, fy + 0.9, -0.8, plain(0x2f4529, 0.82), 10);
+  cyl(gIn, 0.3, 0.24, 0.42, -3.9, fy + 0.21, -0.9, plain(0x9aa2a8, 0.62, 0.3), 16);  // bucket
+  tor(gIn, 0.29, 0.03, -3.9, fy + 0.4, -0.9, plain(0x80888e, 0.6, 0.4), 6, 16).rotation.x = Math.PI / 2;
+  bx(gIn, 1.8, 0.09, 0.9, -0.4, fy + 1.05, -1.3, M.wood, 0.02);                   // table
+  for (const [x, z] of [[-1.15, -1.65], [-1.15, -0.95], [0.35, -1.65], [0.35, -0.95]]) bx(gIn, 0.1, 1.0, 0.1, x, fy + 0.52, z, M.woodDk, 0.02);
+  cyl(gIn, 0.06, 0.06, 10.4, 0, W.slabBot - 0.16, -3.2, M.steelD, 9).rotation.z = Math.PI / 2;  // conduit
+  bx(gIn, 0.4, 0.4, 0.22, -3.2, W.slabBot - 0.16, -3.2, M.steelD, 0.04);
+  cyl(gIn, 0.035, 0.035, 0.75, 0.3, W.slabBot - 0.52, -1.0, M.dark, 7);
+  sph(gIn, 0.2, 0.3, W.slabBot - 0.95, -1.0, new THREE.MeshStandardMaterial({ color: 0xffd089, emissive: 0xffb340, emissiveIntensity: 3.2, roughness: 0.3 }), 14);
+  for (let i = 0; i < 6; i++) { const w2 = tor(gIn, 0.27, 0.012, 0.3, W.slabBot - 0.95, -1.0, M.steelD, 5, 16); w2.rotation.y = i / 6 * TAU; w2.rotation.x = Math.PI / 2; }
+  const lamp = new THREE.PointLight(0xffb866, 13, 13, 2);
+  lamp.position.set(0.3, W.slabBot - 1.05, -0.9); lamp.castShadow = false;
+  lamp.shadow.mapSize.set(512, 512); lamp.shadow.bias = -0.005; gIn.add(lamp);
+
+  // ============ PERSON (articulated) =====================================
+  const gPer = G('person');
+  const skin = plain(0xe8b48c, 0.75), shirt = plain(0xd9641f, 0.85), pants = plain(0x37465c, 0.9);
+  const per = new THREE.Group(); per.position.set(-0.5, fy, -2.3); per.rotation.y = -0.55; gPer.add(per);
+  bx(per, 0.62, 0.9, 0.36, 0, 1.46, 0, shirt, 0.16);
+  sph(per, 0.26, 0, 2.08, 0, skin, 16);
+  bx(per, 0.3, 0.17, 0.34, 0, 2.2, 0, plain(0x2e3a2a, 0.9), 0.08);
+  for (const s of [-1, 1]) {
+    bx(per, 0.17, 0.78, 0.17, s * 0.39, 1.45, 0, shirt, 0.08).rotation.z = s * 0.14;
+    sph(per, 0.1, s * 0.46, 1.04, 0.04, skin, 10);
+    bx(per, 0.21, 0.95, 0.23, s * 0.17, 0.5, 0, pants, 0.07);
+    bx(per, 0.24, 0.14, 0.42, s * 0.17, 0.07, 0.08, plain(0x2b2723, 0.9), 0.05);
+  }
+
+  // ============ SURFACE: wooden hut, plank by plank =======================
+  const gHut = G('hut');
+  const hut = new THREE.Group(); hut.position.set(-14.6, 0.3, -3.4); hut.rotation.y = 0.24; gHut.add(hut);
+  for (let i = 0; i < 9; i++) {
+    const y = 0.22 + i * 0.4;
+    for (const [w, d, x, z] of [[4.2, 0.14, 0, -1.7], [4.2, 0.14, 0, 1.7], [0.14, 3.4, -2.1, 0], [0.14, 3.4, 2.1, 0]]) {
+      if (z === 1.7 && i < 5) { bx(hut, 1.3, 0.38, d, -1.4, y, z, M.wood, 0.02); bx(hut, 1.3, 0.38, d, 1.4, y, z, M.wood, 0.02); continue; }
+      bx(hut, w, 0.38, d, x, y, z, M.wood, 0.02);
+    }
+  }
+  for (const [x, z] of [[-2.1, -1.7], [2.1, -1.7], [-2.1, 1.7], [2.1, 1.7]]) bx(hut, 0.22, 3.7, 0.22, x, 1.85, z, M.woodDk, 0.04);
+  for (let i = 0; i < 10; i++) {
+    const p = bx(hut, 4.8, 0.12, 0.5, 0, 4.42 - Math.abs(i - 4.5) * 0.26, -1.9 + i * 0.42, M.woodDk, 0.02);
+    p.rotation.x = (i < 5 ? -1 : 1) * 0.44;
+  }
+  bx(hut, 1.2, 2.0, 0.1, 0, 1.2, 1.78, M.woodDk, 0.02);
+  sph(hut, 0.08, 0.42, 1.2, 1.86, plain(0x5a5048, 0.6, 0.5), 9);
+  bx(hut, 0.9, 0.9, 0.08, -1.1, 2.2, -1.76, plain(0x8fb4c8, 0.2, 0.1), 0.02);
+  bx(hut, 0.98, 0.1, 0.14, -1.1, 2.2, -1.79, M.woodDk, 0.02);
+  bx(hut, 0.1, 0.98, 0.14, -1.1, 2.2, -1.79, M.woodDk, 0.02);
+
+  // ============ SURFACE: house (collapses later) ==========================
+  const gHouse = G('house');
+  const ho = new THREE.Group(); ho.position.set(-14.6, 0.3, -3.5); gHouse.add(ho);
+  bx(ho, 6.0, 4.2, 5.0, 0, 2.1, 0, M.plaster, 0.06);
+  bx(ho, 6.3, 0.3, 5.3, 0, 4.3, 0, plain(0xbfb49c, 0.9), 0.05);
+  for (let r2 = 0; r2 < 5; r2++) for (const s of [-1, 1]) {
+    const t = bx(ho, 6.4 - r2 * 0.12, 0.16, 0.6, 0, 4.62 + r2 * 0.46, s * (2.2 - r2 * 0.45), plain(0xa5452f, 0.86), 0.04);
+    t.rotation.x = s * -0.74;
+  }
+  bx(ho, 0.9, 1.5, 0.9, 1.8, 6.5, -0.6, plain(0xb0a48c, 0.92), 0.06);
+  bx(ho, 1.2, 2.4, 0.14, -1.7, 1.2, 2.55, M.woodDk, 0.03);
+  for (const x of [-1.7, 1.7]) {
+    bx(ho, 1.4, 1.4, 0.1, x, 2.6, 2.52, plain(0x7ea2b8, 0.16, 0.1), 0.02);
+    bx(ho, 1.55, 0.14, 0.16, x, 2.6, 2.55, plain(0xe8e2d4, 0.9), 0.03);
+    bx(ho, 0.14, 1.55, 0.16, x, 2.6, 2.55, plain(0xe8e2d4, 0.9), 0.03);
+  }
+
+  // ============ ANIMATED EXTRAS ==========================================
+  // Earth still filling the pit, before it is dug out.
+  const gFill = G('pitfill');
+  for (const [x0, x1] of [[W.px0 - W.wall, W.px1 + W.wall], [-8.78, -5.62], [6.22, 7.18], [8.5, 10.75]]) {
+    const w = x1 - x0;
+    strata.forEach(([y0, y1], i) => {
+      const h = y0 - y1; if (h <= 0) return;
+      bx(gFill, w, h, ZD, (x0 + x1) / 2, y1 + h / 2, ZC, fit(i % 2 ? M.soil2 : M.soil, w, h, 4.2, strata[i][2]), 0.03);
+    });
+    bx(gFill, w, 0.3, ZD, (x0 + x1) / 2, 0.15, ZC, fit(M.grass, w, ZD, 3.0), 0.04);
+  }
+
+  // Incoming fire.
+  const gMis = G('missiles');
+  const flameM = new THREE.MeshBasicMaterial({ color: 0xffb04a });
+  for (let i = 0; i < 7; i++) {
+    const m = new THREE.Group();
+    const body = cyl(m, 0.16, 0.16, 1.5, 0, 0, 0, M.steelD, 10); body.rotation.z = Math.PI / 2;
+    const nose = new THREE.Mesh(new THREE.ConeGeometry(0.17, 0.5, 10), M.steelD); nose.rotation.z = -Math.PI / 2; nose.position.x = 1.0; m.add(nose);
+    const tr = new THREE.Mesh(new THREE.ConeGeometry(0.15, 2.6, 8), flameM); tr.rotation.z = Math.PI / 2; tr.position.x = -2.0; m.add(tr);
+    m.userData = { i, sp: 0.8 + R() * 0.5, x: -34 + R() * 14, y: 26 + R() * 10, z: W.z0 + 0.5 + R() * (ZD - 1) };
+    gMis.add(m);
+  }
+
+  // Flying planks (hut) and rubble (house).
+  const gDeb = G('debris');
+  for (let i = 0; i < 26; i++) {
+    const m = bx(gDeb, 0.3 + R() * 1.3, 0.12 + R() * 0.12, 0.26 + R() * 0.3, 0, 0, 0, i % 3 ? M.wood : M.woodDk, 0.02);
+    m.userData = { a: R() * TAU, up: 6 + R() * 9, sp: 3 + R() * 7, rx: (R() - 0.5) * 9, rz: (R() - 0.5) * 9, z: (R() - 0.5) * 3 };
+  }
+  const gRub = G('rubble');
+  for (let i = 0; i < 22; i++) {
+    const m = bx(gRub, 0.4 + R() * 1.0, 0.3 + R() * 0.6, 0.4 + R() * 0.9, 0, 0, 0, i % 3 ? M.plaster : plain(0xa5452f, 0.86), 0.05);
+    m.userData = { a: R() * TAU, up: 2 + R() * 6, sp: 1.5 + R() * 5, rx: (R() - 0.5) * 6, rz: (R() - 0.5) * 6, z: (R() - 0.5) * 3 };
+  }
+
+  // A shell that drops into the still-open pit.
+  const gRock = G('shell');
+  const shell = cyl(gRock, 0.26, 0.26, 1.2, 0.5, 20, -2.5, M.steelD, 12);
+  const shNose = new THREE.Mesh(new THREE.ConeGeometry(0.27, 0.6, 12), M.steelD); shNose.position.set(0.5, 19.3, -2.5); gRock.add(shNose); shNose.rotation.x = Math.PI;
+
+  // Stale air, then filtered air.
+  const gHaze = G('haze');
+  const haze = new THREE.Mesh(new THREE.BoxGeometry(8.5, 5.8, 5.1),
+    new THREE.MeshBasicMaterial({ color: 0xbfa36a, transparent: true, opacity: 0, depthWrite: false }));
+  haze.position.set(0, (W.floor + W.slabBot) / 2, -2.75); gHaze.add(haze);
+
+  // The straight pipe, before it is bent.
+  const gVS = G('ventstraight');
+  cyl(gVS, 0.3, 0.3, 2.6, W.ventX, 1.0, -2.2, M.steelD, 20);
+  const cowl2 = new THREE.Mesh(new THREE.ConeGeometry(0.5, 0.5, 18), M.steelD); cowl2.position.set(W.ventX, 2.45, -2.2); gVS.add(cowl2);
+  // Blast front racing down the pipe.
+  const gPulse = G('pulse');
+  const pulse = sph(gPulse, 0.33, W.ventX, 0, -2.2, new THREE.MeshBasicMaterial({ color: 0xffd9a0 }), 12);
+  // Smoke drifting toward the intake.
+  const gSmoke = G('smoke');
+  for (let i = 0; i < 16; i++) {
+    const m = sph(gSmoke, 0.25 + R() * 0.4, 0, 0, 0, new THREE.MeshBasicMaterial({ color: 0x6a6054, transparent: true, opacity: 0.5, depthWrite: false }), 8);
+    m.userData = { a: R(), r: R(), s: 0.5 + R() };
+  }
+
+  // ---- composer ---------------------------------------------------------
+  const composer = new EffectComposer(renderer, new THREE.WebGLRenderTarget(RW, RH, { type: THREE.HalfFloatType }));
+  composer.addPass(new RenderPass(scene, cam));
+  let gtao = null;
+  try {
+    gtao = new GTAOPass(scene, cam, RW, RH);
+    gtao.output = GTAOPass.OUTPUT.Default;
+    gtao.updateGtaoMaterial({ radius: 0.45, distanceExponent: 1.5, thickness: 1.0, scale: 1.0, samples: Number(globalThis.RQ_AO || 8), screenSpaceRadius: false });
+    composer.addPass(gtao);
+  } catch (e) { console.log('GTAO disabled: ' + e.message); }
+  composer.addPass(new OutputPass());
+  if (SS > 0.85) try { composer.addPass(new SMAAPass(RW, RH)); } catch (e) { console.log('SMAA disabled: ' + e.message); }
+  Math.random = _rnd;
+
+  return { renderer, scene, composer, cam, P, M, sun, lamp, VW, VH, RW, RH, gtao };
+}
+
+export function makeCam(VW, VH) { return new THREE.PerspectiveCamera(36, VW / VH, 0.3, 300); }
+
+export function shot(S, pos, tgt, fov) {
+  S.cam.position.set(pos[0], pos[1], pos[2]);
+  if (fov && fov !== S.cam.fov) { S.cam.fov = fov; S.cam.updateProjectionMatrix(); }
+  S.cam.lookAt(tgt[0], tgt[1], tgt[2]);
+  S.composer.render();
+  return S.renderer.domElement;
+}
+window.S3D = { build, shot, makeCam, W, THREE };

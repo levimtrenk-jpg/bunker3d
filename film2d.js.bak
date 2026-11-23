@@ -1,0 +1,639 @@
+// THE FILM — one cross-section of a back yard. The camera never cuts: it pans and pushes
+// while the shelter is built on top of itself, step by step, in time with the narration.
+(function () {
+  const U = globalThis.U, G = globalThis.G, S = globalThis.SCORE, Studio = globalThis.Studio;
+  const { ev } = S;
+  const { clamp, lerp, ease } = U;
+  const W = G.W, H = G.H;
+
+  // ---- palette (the "technical diagram" look) --------------------------------
+  const PAL = {
+    flat: { // blueprint: technical, cold, cyan on navy
+      sky0:'#05121F', sky1:'#0A2033', soil:'#15212B', soilLine:'rgba(120,180,215,0.10)',
+      wood:'#6B4A2B', woodEdge:'#C08A4E', conc:'#2B3A46', concEdge:'#7FA6BF', air:'#071623',
+      cyan:'#6FD9FF', hot:'#FF6B4A', warn:'#FFC247', ink:'#EAF6FF', dim:'#8FB3C9',
+      capFill:'rgba(4,16,27,0.90)', capEdge:'#3E8FB8', chip:'rgba(3,12,20,0.78)',
+    },
+    neon: { // night raid: black, magenta and electric cyan
+      sky0:'#05030E', sky1:'#120726', soil:'#160A24', soilLine:'rgba(255,45,122,0.09)',
+      wood:'#4A2A52', woodEdge:'#FF8AC2', conc:'#231038', concEdge:'#8A4BFF', air:'#06030D',
+      cyan:'#22E5FF', hot:'#FF2D7A', warn:'#FFE14D', ink:'#FFFFFF', dim:'#A98BD8',
+      capFill:'rgba(6,3,14,0.86)', capEdge:'#FF2D7A', chip:'rgba(6,3,14,0.80)',
+    },
+    paper: { // field manual: warm paper and ink
+      sky0:'#E7DAC0', sky1:'#D9C8A8', soil:'#C3AE88', soilLine:'rgba(40,34,26,0.10)',
+      wood:'#B07B42', woodEdge:'#5A3A1B', conc:'#AFA48E', concEdge:'#2A2622', air:'#EFE6D2',
+      cyan:'#2F5F7A', hot:'#B5331F', warn:'#C08400', ink:'#211E1A', dim:'#6B6354',
+      capFill:'#FFF6E2', capEdge:'#211E1A', chip:'#FFF6E2',
+    },
+    chalk: { // blackboard: a lesson being drawn
+      sky0:'#20352B', sky1:'#2E4638', soil:'#243A2E', soilLine:'rgba(242,238,227,0.10)',
+      wood:'#7A5A34', woodEdge:'#E8D9B5', conc:'#36503F', concEdge:'#F2EEE3', air:'#1A2A21',
+      cyan:'#9FE8C8', hot:'#FF9A7A', warn:'#FFD98A', ink:'#F2EEE3', dim:'#BFD6C6',
+      capFill:'rgba(20,34,26,0.88)', capEdge:'#9FE8C8', chip:'rgba(20,34,26,0.82)',
+    },
+  };
+  const C = PAL[G.styleName] || PAL.flat;
+  const DARKBG = G.styleName !== 'paper';
+
+
+  // ---- text ------------------------------------------------------------------
+  const FF = (s, w) => `${w || 900} ${s}px Rubik, RubikL, sans-serif`;
+  function hText(ctx, str, x, y, size, color, align, weight) {
+    ctx.save();
+    ctx.font = FF(size, weight); ctx.direction = 'rtl';
+    ctx.textAlign = align || 'center'; ctx.textBaseline = 'alphabetic';
+    ctx.fillStyle = color; ctx.fillText(str, x, y); ctx.restore();
+  }
+  function tw(ctx, str, size, weight) {
+    ctx.save(); ctx.font = FF(size, weight); ctx.direction = 'rtl';
+    const w = ctx.measureText(str).width; ctx.restore(); return w;
+  }
+  function wrap(ctx, str, size, maxW) {
+    const words = str.split(' '); const out = []; let cur = '';
+    for (const w of words) {
+      const probe = cur ? cur + ' ' + w : w;
+      if (cur && tw(ctx, probe, size) > maxW) { out.push(cur); cur = w; } else cur = probe;
+    }
+    if (cur) out.push(cur);
+    return out;
+  }
+  function caption(ctx, c, t) {
+    if (t < c.t || t > c.end) return;
+    const a = ease.outBack(clamp((t - c.t) / 0.22), 1.8);
+    const out = clamp((c.end - t) / 0.14);
+    const size = 62, maxW = W - 300;
+    const lines = wrap(ctx, c.text, size, maxW);
+    const lh = size * 1.3;
+    const bw = Math.max(...lines.map((l) => tw(ctx, l, size))) + 84;
+    const bh = lines.length * lh + 36;
+    const cx = W / 2, top = 290;
+    ctx.save();
+    ctx.globalAlpha = clamp(a * 1.5) * out;
+    ctx.translate(cx, top + bh / 2); ctx.scale(a, a); ctx.translate(-cx, -(top + bh / 2));
+    G.rrect(ctx, cx - bw / 2, top, bw, bh, 26, { fill: C.capFill, stroke: C.capEdge, lw: 4, seed: 31 });
+    lines.forEach((l, i) => hText(ctx, l, cx, top + size * 0.95 + i * lh, size, C.ink));
+    ctx.restore();
+  }
+  // a label with a leader line, in world space
+  function tag(ctx, str, wx, wy, dx, dy, color) {
+    const s = 38, wd = tw(ctx, str, s) + 26;
+    ctx.save();
+    G.line(ctx, [[wx, wy], [wx + dx, wy + dy]], { color, lw: 2.5, seed: 7 });
+    ctx.beginPath(); ctx.arc(wx, wy, 5, 0, 7); ctx.fillStyle = color; ctx.fill();
+    const lx = wx + dx, ly = wy + dy;
+    G.rrect(ctx, dx < 0 ? lx - wd : lx, ly - s * 0.9, wd, s * 1.3, 8,
+      { fill: C.chip, stroke: color, lw: 2.5, seed: 9 });
+    hText(ctx, str, dx < 0 ? lx - 11 : lx + wd - 11, ly + s * 0.2, s, color, 'right');
+    ctx.restore();
+  }
+
+
+  // ---- drafting detail ---------------------------------------------------------
+  // Line-weight hierarchy, the thing that separates a drawing from a shape: a cut
+  // edge is heavy, a surface is medium, a detail is hair-thin.
+  const LW = { cut: 6, surf: 3.4, detail: 1.8 };
+  const n01 = (a, b) => (U.noise1(a, b) + 1) / 2;   // noise1 is -1..1; most uses below want 0..1
+
+  // "focus + context": whatever the narration is on reads at full strength, the rest
+  // drops back. Without this the eye has nowhere to go and the frame reads as clutter.
+  function hero(t, ranges) {
+    let a = 0.42;
+    for (const [t0, t1] of ranges) {
+      if (t >= t0 - 0.35 && t <= t1 + 0.35) {
+        a = Math.max(a, 0.42 + 0.58 * clamp(Math.min((t - (t0 - 0.35)) / 0.35, ((t1 + 0.35) - t) / 0.35)));
+      }
+    }
+    return a;
+  }
+  function clipRect(ctx, x, y, w, h, fn) {
+    ctx.save(); ctx.beginPath(); ctx.rect(x, y, w, h); ctx.clip(); fn(); ctx.restore();
+  }
+  // section hatching: how a cut surface is drawn on any real section drawing
+  function hatch45(ctx, x, y, w, h, step, color, alpha) {
+    clipRect(ctx, x, y, w, h, () => {
+      ctx.globalAlpha = alpha === undefined ? 0.35 : alpha;
+      ctx.strokeStyle = color; ctx.lineWidth = LW.detail;
+      for (let d = -h; d < w + h; d += step) {
+        ctx.beginPath(); ctx.moveTo(x + d, y); ctx.lineTo(x + d - h, y + h); ctx.stroke();
+      }
+    });
+  }
+  // concrete: aggregate speckle plus the reinforcing bar you would see in section
+  function concreteFill(ctx, x, y, w, h, seed) {
+    G.rrect(ctx, x, y, w, h, 3, { fill: C.conc, stroke: C.concEdge, lw: LW.cut, seed });
+    hatch45(ctx, x, y, w, h, 26, C.concEdge, 0.18);
+    clipRect(ctx, x, y, w, h, () => {
+      ctx.globalAlpha = 0.5; ctx.fillStyle = C.concEdge;
+      for (let i = 0; i < Math.max(14, (w * h) / 900); i++) {
+        const px = x + n01(i * 1.7 + seed, 1) * w, py = y + n01(i * 2.3 + seed, 2) * h;
+        ctx.beginPath(); ctx.arc(px, py, 1.6 + n01(i + seed, 3) * 2.2, 0, 7); ctx.fill();
+      }
+      ctx.globalAlpha = 0.3; ctx.strokeStyle = C.concEdge; ctx.lineWidth = LW.detail;
+      for (let gx = x + 18; gx < x + w; gx += 34) { ctx.beginPath(); ctx.moveTo(gx, y); ctx.lineTo(gx, y + h); ctx.stroke(); }
+      for (let gy = y + 18; gy < y + h; gy += 34) { ctx.beginPath(); ctx.moveTo(x, gy); ctx.lineTo(x + w, gy); ctx.stroke(); }
+    });
+  }
+  // soil in section: strata, stones and roots near the surface
+  function soilDetail(ctx) {
+    const bands = [[0, 120, 0.00], [120, 300, 0.05], [300, 620, 0.10], [620, 1100, 0.16]];
+    for (const [y0, y1, dark] of bands) {
+      ctx.save(); ctx.globalAlpha = dark; ctx.fillStyle = '#000';
+      ctx.fillRect(-2600, y0, 5200, y1 - y0); ctx.restore();
+      ctx.save(); ctx.globalAlpha = 0.22; ctx.strokeStyle = C.dim; ctx.lineWidth = LW.detail;
+      ctx.beginPath();
+      for (let x = -1700; x <= 1700; x += 40) {
+        const yy = y0 + U.noise1(x * 0.01 + y0, 4) * 16;
+        x === -1700 ? ctx.moveTo(x, yy) : ctx.lineTo(x, yy);
+      }
+      ctx.stroke(); ctx.restore();
+    }
+    ctx.save(); ctx.globalAlpha = 0.5; // stones
+    for (let i = 0; i < 90; i++) {
+      const x = -1700 + n01(i * 1.3, 6) * 3400, y = 20 + n01(i * 2.1, 7) * 980;
+      if (x > PIT.x0 - 70 && x < PIT.x1 + 70 && y < PIT.yBot + 60) continue;
+      const r = 3 + n01(i, 8) * 7;
+      ctx.fillStyle = C.dim; ctx.beginPath(); ctx.ellipse(x, y, r, r * 0.7, U.noise1(i, 9) * 3, 0, 7); ctx.fill();
+    }
+    ctx.globalAlpha = 0.45; ctx.strokeStyle = C.dim; ctx.lineWidth = LW.detail; // roots
+    for (let i = 0; i < 16; i++) {
+      const x = -1600 + i * 210 + U.noise1(i, 11) * 60;
+      if (x > PIT.x0 - 90 && x < PIT.x1 + 90) continue;
+      ctx.beginPath(); ctx.moveTo(x, 0);
+      for (let k = 1; k <= 4; k++) ctx.lineTo(x + U.noise1(i * 3 + k, 12) * 34, k * 22);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+  // a dimension line with end ticks and a figure — pure drafting language
+  function dimLine(ctx, x1, y1, x2, y2, label, color) {
+    const ang = Math.atan2(y2 - y1, x2 - x1), tx = Math.cos(ang + Math.PI / 2) * 13, ty = Math.sin(ang + Math.PI / 2) * 13;
+    ctx.save();
+    ctx.strokeStyle = color; ctx.lineWidth = LW.detail + 0.6;
+    ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x1 - tx, y1 - ty); ctx.lineTo(x1 + tx, y1 + ty); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x2 - tx, y2 - ty); ctx.lineTo(x2 + tx, y2 + ty); ctx.stroke();
+    const mx = (x1 + x2) / 2, my = (y1 + y2) / 2, s = 30, wd = tw(ctx, label, s) + 16;
+    ctx.fillStyle = C.chip; ctx.fillRect(mx - wd / 2, my - s * 0.72, wd, s * 1.1);
+    hText(ctx, label, mx + wd / 2 - 8, my + s * 0.26, s, color, 'right');
+    ctx.restore();
+  }
+
+  // ---- camera -----------------------------------------------------------------
+  // [t, centre x, centre y, zoom] in world units; smoothly interpolated, never cut.
+  const CAM = [
+    [0.0,  -180, -170, 0.72],
+    [ev.hut,  0, -150, 0.92],
+    [ev.dig,  0,  170, 0.86],
+    [ev.ceiling, 0,  70, 1.00],
+    [ev.soil, 0,  -30, 0.84],
+    [ev.sealed, 20, 310, 1.30],
+    [ev.pipe, 150,  60, 0.92],
+    [ev.filter, 190, -70, 1.05],
+    [ev.blastIn, 185, -40, 1.12],
+    [ev.bend + 2.0, 175, 20, 1.00],
+    [ev.collapse, -180, 40, 0.98],
+    [ev.exit2, 120, 160, 0.78],
+    [ev.done,  40, 120, 0.70],
+    [S.DURATION, 40, 120, 0.68],
+  ];
+  function camAt(t) {
+    let i = 0;
+    while (i < CAM.length - 2 && t >= CAM[i + 1][0]) i++;
+    const a = CAM[i], b = CAM[i + 1];
+    const u = ease.inOutCubic(clamp((t - a[0]) / Math.max(0.001, b[0] - a[0])));
+    return { x: lerp(a[1], b[1], u), y: lerp(a[2], b[2], u), z: lerp(a[3], b[3], u) };
+  }
+
+  // ---- world geometry (y = 0 is ground level, +y is down into the earth) ------
+  const PIT = { x0: -250, x1: 250, yTop: 70, yBot: 520 };
+  const WALL = 52;
+  const SLAB = { y0: 18, y1: 70 };
+  const PIPE_X = 168;
+  const ENT_X = -170;
+  const EXIT_X = 352;
+
+  const app = (t, t0, dur) => ease.outCubic(clamp((t - t0) / dur));
+
+  // ---- pieces ------------------------------------------------------------------
+  function sky(ctx, t) {
+    const g = ctx.createLinearGradient(0, -1400, 0, 60);
+    g.addColorStop(0, C.sky0); g.addColorStop(1, C.sky1);
+    ctx.fillStyle = g; ctx.fillRect(-3000, -2400, 6000, 2460);
+    for (let i = 0; i < 46; i++) {
+      const x = -1500 + U.noise1(i * 3.1, 1) * 1500, y = -1300 + U.noise1(i * 2.7, 2) * 650;
+      ctx.globalAlpha = 0.25 + 0.25 * U.noise1(i, 5);
+      ctx.fillStyle = C.ink; ctx.fillRect(x, y, 3, 3);
+    }
+    ctx.globalAlpha = 1;
+  }
+  function missiles(ctx, t) {
+    const a = clamp((ev.dig + 1.2 - t) / 1.2) * clamp(t / 0.3);
+    if (a <= 0) return;
+    ctx.save(); ctx.globalAlpha = a;
+    for (let i = 0; i < 7; i++) {
+      const ph = ((t * 0.5 + i * 0.143) % 1);
+      const x0 = -2100 + i * 430, y0 = -1500;
+      const x = x0 + ph * 2300, y = y0 + ph * 1400;
+      ctx.shadowColor = C.hot; ctx.shadowBlur = 24;
+      G.line(ctx, [[x - 190, y - 116], [x, y]], { color: DARKBG ? '#FFD9C9' : C.hot, lw: DARKBG ? 9 : 12, seed: 20 + i });
+      ctx.shadowBlur = 0;
+      ctx.globalAlpha = a * 0.35;
+      G.line(ctx, [[x - 560, y - 341], [x - 190, y - 116]], { color: C.hot, lw: 4, seed: 30 + i });
+      ctx.globalAlpha = a;
+    }
+    // distant impacts lighting the horizon
+    for (let i = 0; i < 3; i++) {
+      const f = Math.max(0, 1 - (((t * 0.9 + i * 0.37) % 1.6) / 0.35));
+      if (f <= 0) continue;
+      const x = -1250 + i * 1250;
+      const g2 = ctx.createRadialGradient(x, 0, 0, x, 0, 520 * f);
+      g2.addColorStop(0, 'rgba(255,150,90,' + (0.55 * f * a).toFixed(3) + ')');
+      g2.addColorStop(1, 'rgba(255,150,90,0)');
+      ctx.fillStyle = g2; ctx.beginPath(); ctx.arc(x, 0, 520 * f, Math.PI, 2 * Math.PI); ctx.fill();
+    }
+    ctx.restore();
+  }
+  function earth(ctx, t) {
+    ctx.fillStyle = C.soil; ctx.fillRect(-3000, 0, 6000, 2400);
+    soilDetail(ctx);
+    G.line(ctx, [[-1600, 0], [1600, 0]], { color: C.ink, lw: LW.cut, seed: 2 });
+  }
+  function hut(ctx, t) {
+    if (t < ev.hut) return;
+    const a = app(t, ev.hut, 0.5);
+    const gone = t >= ev.shrapnel ? clamp((t - ev.shrapnel) / 0.7) : 0;
+    ctx.save();
+    if (gone < 1) {
+      ctx.globalAlpha = a * (1 - gone);
+      const h = 250 * a;
+      G.rrect(ctx, -170, -h, 340, h, 6, { fill: C.wood, stroke: C.woodEdge, lw: 5, seed: 40 });
+      G.poly(ctx, [[-200, -h], [0, -h - 110], [200, -h]], { fill: C.wood, stroke: C.woodEdge, lw: 5, closed: true, seed: 41 });
+      for (let i = 1; i < 5; i++) G.line(ctx, [[-170, -h * i / 5], [170, -h * i / 5]], { color: C.woodEdge, lw: LW.surf, seed: 42 + i });
+      clipRect(ctx, -170, -h, 340, h, () => {   // grain and knots
+        ctx.globalAlpha = 0.45; ctx.strokeStyle = C.woodEdge; ctx.lineWidth = LW.detail;
+        for (let i = 0; i < 22; i++) {
+          const y = -h + (i / 22) * h;
+          ctx.beginPath(); ctx.moveTo(-170, y);
+          for (let k = 1; k <= 6; k++) ctx.lineTo(-170 + (340 * k) / 6, y + U.noise1(i * 3 + k, 14) * 5);
+          ctx.stroke();
+        }
+        ctx.globalAlpha = 0.6;
+        for (let i = 0; i < 4; i++) {
+          const kx = -120 + U.noise1(i, 15) * 240, ky = -h + 20 + U.noise1(i, 16) * (h - 40);
+          ctx.beginPath(); ctx.ellipse(kx, ky, 9, 6, 0, 0, 7); ctx.stroke();
+        }
+      });
+    }
+    if (gone > 0) { // planks thrown outward
+      for (let i = 0; i < 14; i++) {
+        const ang = -Math.PI + (i / 14) * Math.PI, d = gone * (420 + 240 * U.noise1(i, 3));
+        const x = Math.cos(ang) * d, y = -120 + Math.sin(ang) * d * 0.7 + gone * gone * 260;
+        ctx.save(); ctx.globalAlpha = 1 - gone * 0.8; ctx.translate(x, y); ctx.rotate(gone * 6 * U.noise1(i, 9));
+        G.rrect(ctx, -34, -7, 68, 14, 3, { fill: C.wood, stroke: C.woodEdge, lw: 2, seed: 60 + i });
+        ctx.restore();
+      }
+    }
+    ctx.restore();
+  }
+  function pit(ctx, t) {
+    if (t < ev.dig) return;
+    const a = app(t, ev.dig, 1.6);
+    const yb = lerp(PIT.yTop, PIT.yBot, a);
+    ctx.save();
+    ctx.fillStyle = C.air;
+    ctx.fillRect(PIT.x0, 0, PIT.x1 - PIT.x0, yb);
+    ctx.strokeStyle = C.dim; ctx.lineWidth = 3;
+    ctx.strokeRect(PIT.x0, 0, PIT.x1 - PIT.x0, yb);
+    ctx.restore();
+    // concrete walls rise with the dig
+    const wa = app(t, ev.dig + 0.5, 1.6);
+    if (wa > 0) {
+      const top = lerp(PIT.yBot, PIT.yTop, wa);
+      [[PIT.x0, WALL], [PIT.x1 - WALL, WALL]].forEach(([x, w], i) => concreteFill(ctx, x, top, w, PIT.yBot - top, 70 + i));
+      concreteFill(ctx, PIT.x0, PIT.yBot - WALL, PIT.x1 - PIT.x0, WALL, 73);
+    }
+  }
+  function openTopWarning(ctx, t) {
+    if (t < ev.openTop || t >= ev.ceiling) return;
+    const a = clamp((t - ev.openTop) / 0.4) * clamp((ev.ceiling - t) / 0.3);
+    const pulse = 0.55 + 0.45 * Math.sin(t * 7);
+    ctx.save(); ctx.globalAlpha = a * pulse;
+    ctx.setLineDash([26, 18]); ctx.strokeStyle = C.hot; ctx.lineWidth = 7;
+    ctx.beginPath(); ctx.moveTo(PIT.x0, SLAB.y1); ctx.lineTo(PIT.x1, SLAB.y1); ctx.stroke();
+    ctx.setLineDash([]); ctx.restore();
+    // something drops in
+    if (t >= ev.drop) {
+      const d = clamp((t - ev.drop) / 0.5);
+      const y = lerp(-700, PIT.yBot - 80, ease.inQuad(d));
+      ctx.save(); ctx.globalAlpha = 1;
+      G.ellipse(ctx, 40, y, 22, 30, { fill: C.hot, stroke: C.hot, lw: 3 });
+      ctx.restore();
+    }
+  }
+  function ceiling(ctx, t) {
+    if (t < ev.ceiling) return;
+    const a = app(t, ev.ceiling, 0.42);
+    const x = lerp(PIT.x1 + 260, PIT.x0, a);           // the slab slides into place
+    concreteFill(ctx, x, SLAB.y0, PIT.x1 - PIT.x0, SLAB.y1 - SLAB.y0, 80);
+    // bare concrete takes a direct hit
+    if (t >= ev.hit && t < ev.soil + 1.4) {
+      const g = clamp((t - ev.hit) / 0.4) * clamp((ev.soil + 1.4 - t) / 0.8);
+      ctx.save(); ctx.globalAlpha = g;
+      for (let i = 0; i < 7; i++) {
+        const pts = [[10, SLAB.y0]];
+        for (let k = 1; k <= 5; k++) pts.push([10 + (i - 3) * 34 * k / 5 + U.noise1(i * 2 + k, 4) * 20, SLAB.y0 + (SLAB.y1 - SLAB.y0) * k / 5]);
+        G.line(ctx, pts, { color: C.hot, lw: 4, seed: 90 + i });
+      }
+      ctx.restore();
+    }
+  }
+  function soilCover(ctx, t) {
+    if (t < ev.soil) return;
+    const a = app(t, ev.soil, 1.5);
+    const h = 168 * a;
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(PIT.x0 - 180, 0);
+    ctx.quadraticCurveTo(0, -h * 1.5, PIT.x1 + 180, 0);
+    ctx.closePath();
+    ctx.fillStyle = C.soil; ctx.fill();
+    ctx.strokeStyle = C.dim; ctx.lineWidth = 3; ctx.stroke();
+    ctx.restore();
+    // earth arching: the load bridges over the roof instead of pressing on it
+    if (t >= ev.arch) {
+      const g = clamp((t - ev.arch) / 1.0) * clamp((ev.sealed + 0.6 - t) / 0.8);
+      ctx.save(); ctx.globalAlpha = Math.max(0, g) * 0.9;
+      for (let k = 0; k < 4; k++) {
+        const r = 150 + k * 46;
+        ctx.beginPath();
+        ctx.strokeStyle = C.cyan; ctx.lineWidth = 4;
+        ctx.ellipse(0, SLAB.y0, r, r * 0.72, 0, Math.PI, 2 * Math.PI);
+        ctx.stroke();
+      }
+      ctx.globalAlpha = Math.max(0, g);
+      tag(ctx, 'האדמה נושאת את ההדף', 0, -h - 40, 70, -250, C.cyan);
+      ctx.restore();
+    }
+  }
+  function figure(ctx, bx, by, scared) {
+    G.ellipse(ctx, bx, by - 104, 26, 28, { fill: C.dim, stroke: C.ink, lw: 3 });
+    G.rrect(ctx, bx - 22, by - 76, 44, 58, 14, { fill: C.dim, stroke: C.ink, lw: 3, seed: 100 });
+    G.line(ctx, [[bx - 12, by - 18], [bx - 14, by]], { color: C.ink, lw: 5, seed: 101 });
+    G.line(ctx, [[bx + 12, by - 18], [bx + 14, by]], { color: C.ink, lw: 5, seed: 102 });
+    if (scared) { // hands to the head
+      G.line(ctx, [[bx - 20, by - 66], [bx - 30, by - 100]], { color: C.ink, lw: 5, seed: 103 });
+      G.line(ctx, [[bx + 20, by - 66], [bx + 30, by - 100]], { color: C.ink, lw: 5, seed: 104 });
+    }
+  }
+  function surfacePerson(ctx, t) {
+    if (t >= ev.dig + 0.6) return;
+    const a = clamp(t / 0.4) * clamp((ev.dig + 0.6 - t) / 0.4);
+    ctx.save(); ctx.globalAlpha = a;
+    figure(ctx, -470, 0, t < ev.hut);
+    ctx.restore();
+  }
+  function interior(ctx, t) {
+    if (t < ev.dig + 1.4) return;
+    const a = app(t, ev.dig + 1.4, 0.8);
+    const fy = PIT.yBot - WALL, x0 = PIT.x0 + WALL, x1 = PIT.x1 - WALL;
+    ctx.save(); ctx.globalAlpha = a * 0.9;
+    G.line(ctx, [[x0, fy], [x1, fy]], { color: C.ink, lw: LW.surf, seed: 170 });   // floor
+    // bench along the far wall
+    G.rrect(ctx, x0 + 14, fy - 54, 112, 14, 3, { fill: C.conc, stroke: C.ink, lw: LW.surf, seed: 171 });
+    G.line(ctx, [[x0 + 24, fy - 40], [x0 + 24, fy]], { color: C.ink, lw: LW.detail + 1, seed: 172 });
+    G.line(ctx, [[x0 + 114, fy - 40], [x0 + 114, fy]], { color: C.ink, lw: LW.detail + 1, seed: 173 });
+    // shelf with supplies
+    G.line(ctx, [[x1 - 130, fy - 190], [x1 - 6, fy - 190]], { color: C.ink, lw: LW.surf, seed: 174 });
+    for (let i = 0; i < 4; i++) G.rrect(ctx, x1 - 122 + i * 29, fy - 216, 20, 26, 3, { fill: C.conc, stroke: C.ink, lw: LW.detail + 0.6, seed: 175 + i });
+    // water can
+    G.rrect(ctx, x1 - 70, fy - 56, 40, 56, 5, { fill: C.conc, stroke: C.ink, lw: LW.surf, seed: 180 });
+    // bulb on the ceiling
+    G.line(ctx, [[20, SLAB.y1], [20, SLAB.y1 + 46]], { color: C.ink, lw: LW.detail + 0.6, seed: 181 });
+    G.ellipse(ctx, 20, SLAB.y1 + 60, 15, 17, { fill: C.warn, stroke: C.ink, lw: LW.detail + 0.8 });
+    ctx.restore();
+  }
+  function person(ctx, t) {
+    if (t < ev.dig + 1.2) return;
+    const a = app(t, ev.dig + 1.2, 0.5);
+    const bx = -60, by = PIT.yBot - WALL;
+    ctx.save(); ctx.globalAlpha = a;
+    figure(ctx, bx, by, t >= ev.co2 && t < ev.pipe);
+    ctx.restore();
+  }
+  function co2(ctx, t) {
+    if (t < ev.sealed || t >= ev.pipe + 0.8) return;
+    const g = clamp((t - ev.co2) / 2.6) * clamp((ev.pipe + 0.8 - t) / 0.6);
+    if (g <= 0) return;
+    ctx.save();
+    ctx.globalAlpha = 0.5 * g;
+    ctx.fillStyle = C.warn;
+    const inner = { x: PIT.x0 + WALL, y: SLAB.y1, w: PIT.x1 - PIT.x0 - 2 * WALL, h: PIT.yBot - WALL - SLAB.y1 };
+    ctx.fillRect(inner.x, inner.y + inner.h * (1 - g), inner.w, inner.h * g);
+    ctx.globalAlpha = g;
+    for (let i = 0; i < 26; i++) {
+      const x = inner.x + 16 + U.noise1(i * 1.7, 11) * (inner.w - 32);
+      const y = inner.y + inner.h - ((t * 42 + i * 37) % inner.h);
+      ctx.fillStyle = C.warn; ctx.beginPath(); ctx.arc(x, y, 5, 0, 7); ctx.fill();
+    }
+    hText(ctx, `CO₂  ${(0.04 + 3.1 * g).toFixed(1)}%`, 0, SLAB.y1 + 72, 46, C.warn);
+    ctx.restore();
+  }
+  // the pipe: straight at first, bent 90° from ev.bend on
+  function pipePath(t) {
+    const bent = clamp((t - ev.bend) / 0.9);
+    const yIn = SLAB.y1 + 10, yOut = -230;
+    if (bent <= 0) return [[PIPE_X, yIn], [PIPE_X, yOut]];
+    const kx = lerp(PIPE_X, PIPE_X + 190, ease.inOutCubic(bent));
+    const ky = -40;
+    return [[PIPE_X, yIn], [PIPE_X, ky], [kx, ky], [kx, yOut]];
+  }
+  function pipe(ctx, t) {
+    if (t < ev.pipe) return;
+    const a = app(t, ev.pipe, 0.7);
+    const p = pipePath(t);
+    ctx.save();
+    ctx.globalAlpha = a;
+    ctx.strokeStyle = C.concEdge; ctx.lineWidth = 26; ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+    ctx.beginPath(); p.forEach((q, i) => (i ? ctx.lineTo(q[0], q[1]) : ctx.moveTo(q[0], q[1]))); ctx.stroke();
+    ctx.strokeStyle = C.air; ctx.lineWidth = 15;
+    ctx.beginPath(); p.forEach((q, i) => (i ? ctx.lineTo(q[0], q[1]) : ctx.moveTo(q[0], q[1]))); ctx.stroke();
+    ctx.restore();
+    // smoke coming in through the open hole
+    if (t >= ev.smoke && t < ev.filter + 0.8) {
+      const g = clamp((t - ev.smoke) / 0.5) * clamp((ev.filter + 0.8 - t) / 0.6);
+      ctx.save(); ctx.globalAlpha = 0.75 * g;
+      for (let i = 0; i < 16; i++) {
+        const ph = ((t * 0.45 + i * 0.0625) % 1);
+        const y = lerp(-230, SLAB.y1 + 10, ph);
+        ctx.fillStyle = C.hot; ctx.beginPath();
+        ctx.arc(PIPE_X + U.noise1(i + y * 0.01, 7) * 5, y, 6, 0, 7); ctx.fill();
+      }
+      ctx.restore();
+    }
+    // filter + blower, and the overpressure that keeps everything out
+    if (t >= ev.filter) {
+      const g = app(t, ev.filter, 0.6);
+      ctx.save(); ctx.globalAlpha = g;
+      G.rrect(ctx, PIPE_X - 46, SLAB.y1 + 40, 92, 86, 8, { fill: C.conc, stroke: C.cyan, lw: 4, seed: 110 });
+      for (let i = 0; i < 4; i++) G.line(ctx, [[PIPE_X - 34, SLAB.y1 + 56 + i * 18], [PIPE_X + 34, SLAB.y1 + 56 + i * 18]], { color: C.cyan, lw: 3, seed: 111 + i });
+      const puff = 0.5 + 0.5 * Math.sin(t * 5);
+      ctx.globalAlpha = g * (0.45 + 0.5 * puff);
+      const mouth = pipePath(t).slice(-1)[0];
+      for (let i = 0; i < 3; i++) {
+        const d = 30 + i * 26 + puff * 18;
+        G.line(ctx, [[mouth[0] - 16, mouth[1] - d], [mouth[0], mouth[1] - d - 18]], { color: C.cyan, lw: 4, seed: 120 + i });
+        G.line(ctx, [[mouth[0] + 16, mouth[1] - d], [mouth[0], mouth[1] - d - 18]], { color: C.cyan, lw: 4, seed: 130 + i });
+      }
+      ctx.restore();
+    }
+    // a blast pulse running down the pipe; after the bend it dies at the corner
+    if (t >= ev.blastIn) {
+      const per = 3.2, ph = ((t - ev.blastIn) % per) / per;
+      if (ph < 0.62) {
+        const p2 = pipePath(t);
+        const segs = [];
+        let total = 0;
+        for (let i = 0; i < p2.length - 1; i++) {
+          const d = Math.hypot(p2[i + 1][0] - p2[i][0], p2[i + 1][1] - p2[i][1]);
+          segs.push(d); total += d;
+        }
+        const bent = t >= ev.bend + 0.9;
+        const travel = (ph / 0.62) * (bent ? segs[segs.length - 1] + segs[segs.length - 2] * 0.0 : total);
+        let d = Math.min(travel, bent ? segs[segs.length - 1] : total), k = p2.length - 1, acc = 0, pos = null;
+        // walk from the outside mouth inward
+        for (let i = p2.length - 1; i > 0; i--) {
+          const seg = Math.hypot(p2[i][0] - p2[i - 1][0], p2[i][1] - p2[i - 1][1]);
+          if (acc + seg >= d) { const u = (d - acc) / seg; pos = [lerp(p2[i][0], p2[i - 1][0], u), lerp(p2[i][1], p2[i - 1][1], u)]; break; }
+          acc += seg;
+        }
+        if (pos) {
+          ctx.save();
+          const fade = bent ? clamp(1 - (travel - segs[segs.length - 1]) / 60) : 1;
+          ctx.globalAlpha = 0.9 * fade;
+          ctx.strokeStyle = C.hot; ctx.lineWidth = 7;
+          ctx.beginPath(); ctx.arc(pos[0], pos[1], 20, 0, 7); ctx.stroke();
+          ctx.restore();
+        }
+      }
+      if (t >= ev.bend + 1.2) {
+        const g = clamp((t - ev.bend - 1.2) / 0.5) * clamp((ev.collapse - t) / 0.8);
+        if (g > 0) { ctx.save(); ctx.globalAlpha = g; tag(ctx, '90° עוצר את ההדף', PIPE_X + 20, -40, -340, -170, C.cyan); ctx.restore(); }
+      }
+    }
+  }
+  function house(ctx, t) {
+    const a = app(t, ev.ceiling, 0.6);
+    if (a <= 0) return;
+    const fall = t >= ev.collapse ? clamp((t - ev.collapse) / 0.55) : 0;
+    ctx.save();
+    ctx.globalAlpha = a * (1 - fall * 0.85);
+    ctx.translate(0, fall * 58); ctx.scale(1, 1 - fall * 0.42);
+    G.rrect(ctx, ENT_X - 210, -270, 420, 270, 4, { fill: C.conc, stroke: C.dim, lw: 4, seed: 160 });
+    G.poly(ctx, [[ENT_X - 245, -270], [ENT_X, -390], [ENT_X + 245, -270]],
+      { fill: C.conc, stroke: C.dim, lw: 4, closed: true, seed: 161 });
+    [[-130, -200], [20, -200], [-130, -100], [20, -100]].forEach(([dx, dy], i) =>
+      G.rrect(ctx, ENT_X + dx, dy, 72, 58, 4, { fill: C.air, stroke: C.dim, lw: 3, seed: 162 + i }));
+    ctx.restore();
+  }
+  function entrance(ctx, t) {
+    const a = app(t, ev.ceiling, 0.6);
+    if (a <= 0) return;
+    ctx.save(); ctx.globalAlpha = a;
+    ctx.fillStyle = C.air; ctx.fillRect(ENT_X - 46, SLAB.y0 - 10, 92, SLAB.y1 - SLAB.y0 + 24);
+    G.rrect(ctx, ENT_X - 58, -34, 116, 34, 6, { fill: C.conc, stroke: C.concEdge, lw: 4, seed: 140 });
+    ctx.restore();
+    if (t >= ev.collapse) {
+      const g = clamp((t - ev.collapse) / 0.6);
+      ctx.save(); ctx.globalAlpha = g;
+      for (let i = 0; i < 16; i++) {
+        const x = ENT_X - 150 + U.noise1(i * 2.3, 21) * 300;
+        const y = -30 - U.noise1(i * 1.9, 22) * 110 * g;
+        ctx.save(); ctx.translate(x, y); ctx.rotate(U.noise1(i, 23) * 3);
+        G.rrect(ctx, -30, -16, 60, 32, 4, { fill: C.conc, stroke: C.hot, lw: 3, seed: 150 + i });
+        ctx.restore();
+      }
+      if (t < ev.exit2 + 0.5) tag(ctx, 'הכניסה חסומה', ENT_X, -40, -300, -180, C.hot);
+      ctx.restore();
+    }
+  }
+  function exit2(ctx, t) {
+    if (t < ev.exit2) return;
+    const a = app(t, ev.exit2, 1.0);
+    ctx.save(); ctx.globalAlpha = 1;
+    const yTop = lerp(PIT.yBot - 120, -30, a);
+    ctx.fillStyle = C.air; ctx.fillRect(EXIT_X - 42, yTop, 84, PIT.yBot - 120 - yTop + 40);
+    ctx.strokeStyle = C.cyan; ctx.lineWidth = 4;
+    ctx.strokeRect(EXIT_X - 42, yTop, 84, PIT.yBot - 120 - yTop + 40);
+    // the tunnel through the wall
+    ctx.fillStyle = C.air; ctx.fillRect(PIT.x1 - WALL, PIT.yBot - 160, EXIT_X - 42 - (PIT.x1 - WALL), 72);
+    ctx.restore();
+    if (a > 0.8 && t < ev.done + 1.5) { ctx.save(); tag(ctx, 'יציאת חירום', EXIT_X, -20, 110, -210, C.cyan); ctx.restore(); }
+  }
+  function dims(ctx, t) {
+    const a = clamp((t - ev.arch) / 0.8) * (t < ev.sealed ? 1 : clamp((ev.done + 6 - t) / 1.0) * (t > ev.done ? 1 : 0));
+    if (a <= 0) return;
+    ctx.save(); ctx.globalAlpha = Math.min(1, a) * 0.9;
+    dimLine(ctx, PIT.x1 + 120, -168, PIT.x1 + 120, 0, 'מטר', C.dim);
+    dimLine(ctx, PIT.x0 - 120, SLAB.y1, PIT.x0 - 120, PIT.yBot, '3.5 מ׳', C.dim);
+    ctx.restore();
+  }
+  function finalLabels(ctx, t) {
+    if (t < ev.done + 0.8) return;
+    const g = app(t, ev.done + 0.8, 0.7);
+    ctx.save(); ctx.globalAlpha = g * 0.95;
+    tag(ctx, 'מטר אדמה', -120, -150, -300, -150, C.dim);
+    tag(ctx, 'בטון', PIT.x0 + 26, 420, -270, 60, C.dim);
+    tag(ctx, 'אוויר מסונן', PIPE_X, SLAB.y1 + 84, 250, 190, C.dim);
+    ctx.restore();
+  }
+
+  // ---- the film ----------------------------------------------------------------
+  Studio.film({
+    async init() {
+      const add = async (fam, src, unicodeRange) => {
+        const f = new FontFace(fam, `url(${src})`, { weight: '900', unicodeRange });
+        document.fonts.add(f); await f.load();
+      };
+      await add('Rubik', 'fonts/rubik-he-900.woff2');
+      await add('RubikL', 'fonts/rubik-la-900.woff2', 'U+0000-00FF');
+    },
+    draw(ctx, t) {
+      ctx.fillStyle = C.sky0; ctx.fillRect(0, 0, W, H);
+      const cam = camAt(t);
+      const sh = (t >= ev.shrapnel ? 26 * Math.exp(-(t - ev.shrapnel) * 3.0) : 0)
+               + (t >= ev.hit ? 30 * Math.exp(-(t - ev.hit) * 3.0) : 0)
+               + (t >= ev.collapse ? 24 * Math.exp(-(t - ev.collapse) * 3.4) : 0);
+      ctx.save();
+      ctx.translate(W / 2 + U.noise1(t * 34, 1) * sh, H * 0.60 + U.noise1(t * 34, 2) * sh);
+      ctx.scale(cam.z, cam.z);
+      ctx.translate(-cam.x, -cam.y);
+      sky(ctx, t);
+      missiles(ctx, t);
+      earth(ctx, t);
+      ctx.save(); ctx.globalAlpha = hero(t, [[0, ev.shrapnel + 0.8]]); hut(ctx, t); ctx.restore();
+      ctx.save(); ctx.globalAlpha = hero(t, [[ev.collapse - 0.5, ev.exit2]]); house(ctx, t); ctx.restore();
+      pit(ctx, t);
+      ceiling(ctx, t);
+      openTopWarning(ctx, t);
+      soilCover(ctx, t);
+      entrance(ctx, t);
+      exit2(ctx, t);
+      surfacePerson(ctx, t);
+      interior(ctx, t);
+      person(ctx, t);
+      co2(ctx, t);
+      dims(ctx, t);
+      ctx.save(); ctx.globalAlpha = hero(t, [[ev.pipe, ev.collapse - 0.6], [ev.done, S.DURATION]]); pipe(ctx, t); ctx.restore();
+      finalLabels(ctx, t);
+      ctx.restore();
+      // the two structural hits get a single-frame flash; nothing else does
+      for (const h of [ev.shrapnel, ev.hit, ev.collapse]) {
+        const f = clamp(1 - (t - h) / 0.09) * (t >= h ? 1 : 0);
+        if (f > 0) { ctx.save(); ctx.globalAlpha = f * 0.45; ctx.fillStyle = C.hot; ctx.fillRect(0, 0, W, H); ctx.restore(); }
+      }
+      for (const c of S.captions) caption(ctx, c, t);
+    },
+    post: { vignette: 0.45, grain: 0.04 },
+  });
+})();

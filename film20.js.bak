@@ -1,0 +1,329 @@
+// The film: a 3D cutaway rendered by s3d/, with Hebrew captions drawn over it.
+// Every transform is a pure function of t, so parallel render workers agree.
+(function () {
+  const S = globalThis.SCORE, ev = S.ev, W = S.W, H = S.H;
+  const clamp = (v, a = 0, b = 1) => Math.max(a, Math.min(b, v));
+  const ease = {
+    outCubic: (x) => 1 - (1 - x) ** 3,
+    inOutCubic: (x) => (x < 0.5 ? 4 * x * x * x : 1 - (-2 * x + 2) ** 3 / 2),
+    outBack: (x, s = 1.7) => 1 + (s + 1) * (x - 1) ** 3 + s * (x - 1) ** 2,
+    outElastic: (x) => (x <= 0 ? 0 : x >= 1 ? 1 : 2 ** (-9 * x) * Math.sin((x * 10 - 0.75) * 2.09) + 1),
+  };
+  const app = (t, t0, dur) => ease.outCubic(clamp((t - t0) / dur));
+  const smooth = (x) => x * x * (3 - 2 * x);
+  const TH = S3D.THREE, WD = S3D.W;
+
+  // ---------- text -------------------------------------------------------
+  const hText = (ctx, str, x, y, size, col, weight = 900) => {
+    ctx.font = `${weight} ${size}px Rubik, RubikL, sans-serif`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic'; ctx.direction = 'rtl';
+    ctx.fillStyle = col; ctx.fillText(str, x, y);
+  };
+  const tw = (ctx, str, size) => { ctx.font = `900 ${size}px Rubik, RubikL, sans-serif`; return ctx.measureText(str).width; };
+  function wrap(ctx, text, size, maxW) {
+    const words = text.split(' '), out = []; let line = '';
+    for (const w of words) {
+      const tryl = line ? line + ' ' + w : w;
+      if (tw(ctx, tryl, size) > maxW && line) { out.push(line); line = w; } else line = tryl;
+    }
+    if (line) out.push(line); return out;
+  }
+  function rr(ctx, x, y, w, h, r) {
+    ctx.beginPath(); ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
+  }
+  function caption(ctx, c, t) {
+    if (t < c.t || t > c.end) return;
+    const a = ease.outBack(clamp((t - c.t) / 0.22), 1.6), out = clamp((c.end - t) / 0.14);
+    const size = 60, lines = wrap(ctx, c.text, size, W - 260), lh = size * 1.3;
+    const bw = Math.max(...lines.map((l) => tw(ctx, l, size))) + 80, bh = lines.length * lh + 34;
+    const cx = W / 2, top = H * 0.145;
+    ctx.save(); ctx.globalAlpha = clamp(a * 1.5) * out;
+    ctx.translate(cx, top + bh / 2); ctx.scale(a, a); ctx.translate(-cx, -(top + bh / 2));
+    ctx.fillStyle = 'rgba(16,18,22,0.78)'; rr(ctx, cx - bw / 2, top, bw, bh, 26); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.22)'; ctx.lineWidth = 3; ctx.stroke();
+    lines.forEach((l, i) => hText(ctx, l, cx, top + size * 0.95 + i * lh, size, '#fdf7ec'));
+    ctx.restore();
+  }
+
+  // ---------- camera: one continuous move, no cuts -----------------------
+  const CAM = [
+    [0.0,                [4, 9, 31],      [-11, 5.5, -3],   50],  // fire coming down on the plot
+    [ev.hut - 0.5,       [-7.5, 5.5, 19], [-14.6, 2.0, -3], 44],  // the hut goes up
+    [ev.shrapnel + 0.5,  [-8.5, 5.0, 16], [-14.6, 2.2, -3], 48],  // it is blown apart
+    [ev.dig + 1.2,       [9, 2, 15],      [0, -3.4, -3],    40],  // the pit, walls rising
+    [ev.openTop + 0.8,   [6, 11, 15],     [0, -4.2, -3],    44],  // no roof: looking straight in
+    [ev.drop,            [6, 7, 14],      [0, -3.6, -3],    44],
+    [ev.ceiling + 1.2,   [11, 3, 17],     [0, -2.6, -3],    40],  // the slab lands
+    [ev.hit,             [7, 2, 13],      [0, -1.0, -3],    44],  // a direct hit
+    [ev.soil + 1.2,      [10, 3, 16],     [0, -2.9, -3],    38],  // a metre of earth
+    [ev.doorNeed - 1.0,  [10, 3, 16],     [0, -2.9, -3],    38],  // hold until the door line begins
+    [ev.doorNeed,        [-2, -1, 11],    [-6.8, -4.6, -2], 42],  // the way in
+    [ev.door + 0.8,      [-0.5, -4.2, 6.5],[-5.3, -5.3, -1.9], 42],// steel door
+    [ev.turn90 + 0.3,    [-3, 0.5, 10],   [-7.2, -4.0, -3], 46],  // stairs turn a corner
+    [ev.sealed + 0.5,    [4, -2.5, 9],    [-0.5, -4.6, -2.5], 44],// shut in
+    [ev.choke + 0.5,     [2.5, -3.6, 6.5],[-0.5, -5.0, -2.3], 42],// breathing his own air
+    [ev.pipe + 0.8,      [7.0, 0, 15],    [6.6, -2.2, -2.2], 44], // the air pipe
+    [ev.filter + 0.6,    [7.5, -3.0, 12], [6.4, -5.2, -2.2], 46], // filter and blower
+    [ev.blastIn,         [7.2, 1.5, 13],  [6.6, -1.0, -2.2], 44], // blast down a straight pipe
+    [ev.bend + 0.3,      [7.5, 3.5, 12],  [6.3, 0.8, -2.2],  44], // so he bends it
+    [ev.collapse - 0.8,  [-5, 6, 19],     [-13.5, 2.0, -3],  42], // the house comes down
+    [ev.exit2 + 0.4,     [17, 1, 16],     [9.2, -3.2, -2],   42], // the escape shaft
+    [ev.done,            [16, 6, 26],     [0, -3, -3],       38], // the whole thing
+    [S.DURATION,         [19, 8, 31],     [-1, -3, -3],      37],
+  ];
+  function camAt(t) {
+    let i = 0; while (i < CAM.length - 2 && t >= CAM[i + 1][0]) i++;
+    const [t0, p0, g0, f0] = CAM[i], [t1, p1, g1, f1] = CAM[i + 1];
+    const k = smooth(clamp((t - t0) / Math.max(0.001, t1 - t0)));
+    const lp = (a, b) => [a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k, a[2] + (b[2] - a[2]) * k];
+    return { p: lp(p0, p1), g: lp(g0, g1), f: f0 + (f1 - f0) * k };
+  }
+
+  // ---------- per-part animation ----------------------------------------
+  const vis = (g, on) => { g.visible = !!on; };
+  function riseIn(g, t, t0, dur, drop = 4) {         // slide up into place
+    const a = app(t, t0, dur); g.visible = t >= t0 - 0.02;
+    g.position.y = (1 - a) * -drop; return a;
+  }
+  let SC = null, snapshot = null;
+
+  function animate(t) {
+    const P = SC.P;
+    const shake = (t >= ev.shrapnel ? 0.42 : 0) * Math.exp(-(t - ev.shrapnel) * 3.2)
+      + (t >= ev.hit ? 0.5 : 0) * Math.exp(-(t - ev.hit) * 3.0)
+      + (t >= ev.collapse ? 0.4 : 0) * Math.exp(-(t - ev.collapse) * 3.2);
+
+    // --- incoming fire -------------------------------------------------
+    const misOn = t < ev.dig;
+    vis(P.missiles, misOn);
+    if (misOn) P.missiles.children.forEach((m, i) => {
+      const d = m.userData, u = ((t * d.sp * 0.36) + i * 0.143) % 1;
+      m.position.set(-26 + u * 34, 13.5 - u * 13 + (d.y - 26) * 0.3, d.z);
+      m.rotation.z = -0.36; m.scale.setScalar(2.4);
+      if (u > 0.9) m.scale.setScalar(2.4 * Math.max(0.001, (1 - u) / 0.1));
+    });
+
+    // --- hut: stands, then is blown apart -------------------------------
+    const hutGone = t >= ev.shrapnel;
+    vis(P.hut, t >= ev.hut - 0.05 && !hutGone);
+    if (!hutGone) riseIn(P.hut, t, ev.hut, 0.9, 5);
+    vis(P.debris, hutGone && t < ev.dig + 0.3);
+    if (P.debris.visible) {
+      const e = t - ev.shrapnel;
+      P.debris.children.forEach((m) => {
+        const d = m.userData, y = Math.max(0.3, 2.0 + d.up * e - 9.81 * e * e * 0.5);
+        m.position.set(-14.6 + Math.cos(d.a) * d.sp * e, y, -3.4 + Math.sin(d.a) * d.sp * e * 0.5 + d.z);
+        m.rotation.set(d.rx * e, d.a, d.rz * e);
+      });
+    }
+
+    // --- dig: the earth in the pit goes away ----------------------------
+    const dug = app(t, ev.dig, 1.5);
+    vis(P.pitfill, dug < 0.995);
+    P.pitfill.children.forEach((m, i) => {
+      const k = clamp((dug - i * 0.06) / 0.5);
+      m.scale.y = Math.max(0.001, 1 - k); m.position.y = m.userData.y0 - (m.userData.h0 / 2) * k;
+    });
+
+    // --- walls, floor, roof ---------------------------------------------
+    vis(P.pit, t >= ev.dig + 0.5);
+    if (P.pit.visible) riseIn(P.pit, t, ev.dig + 0.5, 1.1, 7);
+    vis(P.roof, t >= ev.ceiling);
+    if (P.roof.visible) { const a = app(t, ev.ceiling, 0.9); P.roof.position.y = (1 - a) * 9; P.roof.position.x = (1 - a) * -3; }
+
+    // a shell drops into the still-open pit
+    const dropOn = t >= ev.drop - 0.1 && t < ev.ceiling;
+    vis(P.shell, dropOn);
+    if (dropOn) { const e = clamp((t - ev.drop) / 0.85); P.shell.position.y = 24 * (1 - e * e) - 22 * 0 - (e * e) * 2; P.shell.position.y = 22 - e * e * 29; }
+
+    // --- earth cover -----------------------------------------------------
+    vis(P.soilcap, t >= ev.soil);
+    if (P.soilcap.visible) { const a = app(t, ev.soil, 1.3); P.soilcap.scale.set(1, Math.max(0.02, a), 1); }
+
+    // --- entrance, door, sandbags ---------------------------------------
+    vis(P.entrance, t >= ev.dig + 0.9); if (P.entrance.visible) riseIn(P.entrance, t, ev.dig + 0.9, 1.0, 3);
+    vis(P.door, t >= ev.door);
+    if (P.door.visible) {                                   // swings shut as he seals it
+      const a = app(t, ev.door, 0.8), sh2 = clamp((t - ev.sealed) / 0.5);
+      P.door.children[0].scale.setScalar(Math.max(0.01, a));
+      P.door.children[0].rotation.y = Math.PI + (1 - sh2) * 0.95 * a;
+    }
+    vis(P.sandbags, t >= ev.soil + 0.5);
+    if (P.sandbags.visible) P.sandbags.children.forEach((m, i) => { const a = app(t, ev.soil + 0.5 + i * 0.05, 0.4); m.scale.setScalar(a); });
+
+    // --- interior and the person ----------------------------------------
+    vis(P.interior, t >= ev.ceiling + 0.4); if (P.interior.visible) riseIn(P.interior, t, ev.ceiling + 0.4, 0.8, 2);
+    vis(P.person, t >= ev.ceiling + 0.5);
+    if (P.person.visible) {
+      const p = P.person.children[0];
+      p.position.y = snapshot.personY + Math.abs(Math.sin(t * 1.1)) * 0.03;   // breathing
+      p.rotation.y = -0.55 + Math.sin(t * 0.37) * 0.12;
+    }
+
+    // --- stale air, then filtered ---------------------------------------
+    const hz = SC.P.haze.children[0];
+    const bad = clamp((t - ev.co2) / 2.4) * (1 - clamp((t - ev.filter) / 1.6));
+    hz.material.opacity = bad * 0.5;
+    hz.material.color.setHex(0xbfa36a);
+    SC.lamp.intensity = 13 * (1 - bad * 0.45);
+
+    // --- the vent --------------------------------------------------------
+    vis(P.vent, t >= ev.pipe);
+    if (P.vent.visible) riseIn(P.vent, t, ev.pipe, 1.0, 7);
+    vis(P.ventstraight, t >= ev.pipe && t < ev.bend + 0.3);
+    if (P.ventstraight.visible) { P.ventstraight.position.y = P.vent.position.y; const o = clamp(1 - (t - ev.bend) / 0.3); P.ventstraight.scale.set(1, Math.max(0.01, o), 1); }
+    // the bend only exists after he bends it
+    SC.bendParts.forEach((m) => { const a = app(t, ev.bend, 0.6); m.visible = t >= ev.bend; m.scale.setScalar(Math.max(0.01, a)); });
+    // smoke drifting to the intake
+    const smOn = t >= ev.smoke && t < ev.filter + 1.4;
+    vis(P.smoke, smOn);
+    if (smOn) P.smoke.children.forEach((m, i) => {
+      const u = ((t - ev.smoke) * 0.33 + m.userData.a) % 1;
+      m.position.set(WD.ventX - 7 + u * 7, 2.6 + Math.sin(u * 5 + i) * 0.7, -2.2 + (m.userData.r - 0.5) * 2.4);
+      m.material.opacity = 0.45 * Math.sin(u * Math.PI) * (1 - clamp((t - ev.filter) / 1.2));
+      m.scale.setScalar(m.userData.s * (0.6 + u));
+    });
+    // the blast front racing down a straight pipe
+    const pu = (t - ev.blastIn) / 1.0;
+    vis(P.pulse, pu >= 0 && pu <= 1 && t < ev.bend);
+    if (P.pulse.visible) {
+      const m = P.pulse.children[0];
+      m.position.y = 2.2 - pu * 9.2; m.scale.setScalar(1 + pu * 0.7);
+      m.material.color.setHex(0xffd9a0);
+    }
+    // filter + blower only after he installs them
+    SC.filterParts.forEach((m) => { m.visible = t >= ev.filter; const a = app(t, ev.filter, 0.6); m.scale.setScalar(Math.max(0.01, a)); });
+
+    // --- the house collapses ---------------------------------------------
+    vis(P.house, t >= ev.soil - 0.4);
+    if (P.house.visible) {
+      P.house.scale.setScalar(app(t, ev.soil - 0.4, 0.7) || 0.01);
+      if (t < ev.collapse) { P.house.children[0].children.forEach((m, i) => { const s0 = snapshot.house[i]; m.position.copy(s0.p); m.rotation.copy(s0.r); }); }
+      else {
+        const e = Math.min(t - ev.collapse, 2.4);
+        P.house.children[0].children.forEach((m, i) => {
+          const s0 = snapshot.house[i], d = (i * 37 % 13) / 13;
+          const f = clamp(e - d * 0.35) ** 1.6;
+          m.position.set(s0.p.x + (d - 0.5) * 3.4 * f, Math.max(0.3, s0.p.y - s0.p.y * clamp(f * 0.9)), s0.p.z + (d - 0.5) * 1.6 * f);
+          m.rotation.set(s0.r.x + (d - 0.5) * 2.6 * f, s0.r.y, s0.r.z + (d - 0.5) * 2.2 * f);
+        });
+      }
+    }
+    vis(P.rubble, t >= ev.collapse && t < ev.exit2 + 0.4);
+    if (P.rubble.visible) {
+      const e = t - ev.collapse;
+      P.rubble.children.forEach((m) => {
+        const d = m.userData, y = Math.max(0.35, 2.5 + d.up * e - 9.81 * e * e * 0.5);
+        m.position.set(-14.6 + Math.cos(d.a) * d.sp * e * 0.45, y, -3.5 + Math.sin(d.a) * d.sp * e * 0.3 + d.z);
+        m.rotation.set(d.rx * Math.min(e, 1.6), d.a, d.rz * Math.min(e, 1.6));
+      });
+    }
+
+    // --- escape shaft ------------------------------------------------------
+    vis(P.exit, t >= ev.exit2); if (P.exit.visible) riseIn(P.exit, t, ev.exit2, 1.0, 6);
+
+    return shake;
+  }
+
+  // ---------- labels pinned to real 3-D points ---------------------------
+  const V3 = new TH.Vector3();
+  function project(x, y, z) {
+    V3.set(x, y, z).project(SC.cam);
+    return [(V3.x * 0.5 + 0.5) * W, (-V3.y * 0.5 + 0.5) * H, V3.z < 1];
+  }
+  const LABELS = [
+    [ev.dig + 2.2, 3.0, 'קירות בטון', [-5.3, -4.2, -0.2], -230, -170],
+    [ev.soil + 1.4, 3.2, 'מטר אדמה', [0, 1.6, -1.5], 0, 190],
+    [ev.door + 1.2, 2.8, 'דלת פלדה', [-5.2, -5.4, -1.9], 240, -190],
+    [ev.turn90 + 0.4, 3.0, 'תשעים מעלות', [-7.2, -5.6, -2.6], 200, -210],
+    [ev.filter + 1.0, 3.0, 'מסנן ומפוח', [6.1, -5.6, -1.6], 250, -170],
+    [ev.bend + 0.9, 2.8, 'תשעים מעלות', [6.0, 1.1, -2.2], -220, -150],
+    [ev.exit2 + 1.2, 3.0, 'יציאת חירום', [9.4, -2.6, -2.0], -250, -190],
+  ];
+  function labels(ctx, t) {
+    for (const [t0, dur, text, wp, dx, dy] of LABELS) {
+      if (t < t0 || t > t0 + dur) continue;
+      const a = clamp((t - t0) / 0.3) * clamp((t0 + dur - t) / 0.35);
+      const [sx, sy, front] = project(wp[0], wp[1], wp[2]);
+      if (!front) continue;
+      const size = 40, bw = tw(ctx, text, size) + 34, bh = size * 1.35;
+      const lx = sx + dx, ly = sy + dy;
+      ctx.save(); ctx.globalAlpha = a;
+      ctx.strokeStyle = '#ffd089'; ctx.lineWidth = 3.5;
+      ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(lx, ly); ctx.stroke();
+      ctx.fillStyle = '#ffd089'; ctx.beginPath(); ctx.arc(sx, sy, 7, 0, 7); ctx.fill();
+      ctx.fillStyle = 'rgba(16,18,22,0.86)'; rr(ctx, lx - bw / 2, ly - bh / 2, bw, bh, 14); ctx.fill();
+      ctx.strokeStyle = '#ffd089'; ctx.lineWidth = 2.5; ctx.stroke();
+      hText(ctx, text, lx, ly + size * 0.35, size, '#ffe7bd');
+      ctx.restore();
+    }
+  }
+  // the earth taking the blast: rings spreading out over the mound
+  function archArcs(ctx, t) {
+    const t0 = ev.soil + 1.9, e = t - t0; if (e < 0 || e > 2.6) return;
+    const [cx, cy, front] = project(0, 1.5, -2.0); if (!front) return;
+    const [ex] = project(6.6, 1.5, -2.0);
+    const rad = Math.abs(ex - cx);
+    ctx.save();
+    for (let i = 0; i < 3; i++) {
+      const u = clamp((e - i * 0.34) / 1.5); if (u <= 0) continue;
+      ctx.globalAlpha = (1 - u) * 0.85 * clamp((2.6 - e) / 0.5);
+      ctx.strokeStyle = '#ffd089'; ctx.lineWidth = 7 * (1 - u) + 2;
+      ctx.beginPath(); ctx.ellipse(cx, cy, rad * (0.25 + u * 0.95), rad * (0.25 + u * 0.95) * 0.42, 0, Math.PI, 0);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+  // the air going bad: the frame itself gets heavy
+  function staleAir(ctx, t) {
+    const a = clamp((t - ev.co2) / 2.6) * (1 - clamp((t - ev.filter) / 1.6));
+    if (a <= 0.01) return;
+    ctx.save(); ctx.globalAlpha = a * 0.5;
+    const g = ctx.createRadialGradient(W / 2, H * 0.55, H * 0.12, W / 2, H * 0.55, H * 0.6);
+    g.addColorStop(0, 'rgba(150,120,60,0)'); g.addColorStop(1, 'rgba(96,66,24,1)');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    ctx.globalAlpha = a * 0.22 * (0.6 + 0.4 * Math.sin(t * 3.1));   // a slow pulse, like a headache
+    ctx.fillStyle = '#7a5418'; ctx.fillRect(0, 0, W, H);
+    ctx.restore();
+  }
+
+  // ---------- the film ----------------------------------------------------
+  Studio.film({
+    async init() {
+      const add = async (fam, src, range) => {
+        const f = new FontFace(fam, `url(${src})`, { weight: '900', unicodeRange: range });
+        document.fonts.add(f); await f.load();
+      };
+      await add('Rubik', 'fonts/rubik-he-900.woff2');
+      await add('RubikL', 'fonts/rubik-la-900.woff2', 'U+0000-00FF');
+      const cam = S3D.makeCam(W, H);
+      SC = S3D.build(W, H, cam);
+      // remember where the pit fill and the house started
+      SC.P.pitfill.children.forEach((m) => { m.userData.y0 = m.position.y; m.userData.h0 = m.geometry.parameters.height || 1; });
+      snapshot = { house: SC.P.house.children[0].children.map((m) => ({ p: m.position.clone(), r: m.rotation.clone() })), personY: SC.P.person.children[0].position.y };
+      // the parts that only appear when the script says so
+      SC.bendParts = SC.P.vent.children.filter((m) => m.geometry && m.geometry.type === 'TorusGeometry' && m.geometry.parameters.arc < 6)
+        .concat(SC.P.vent.children.filter((m) => Math.abs(m.position.x - (WD.ventX - 1.85)) < 0.01 || Math.abs(m.position.x - (WD.ventX - 3.15)) < 0.25));
+      SC.filterParts = SC.P.vent.children.filter((m) => m.position.y < -5.0 && m.position.y > -6.6);
+    },
+    draw(ctx, t) {
+      const sh = animate(t);
+      const c = camAt(t);
+      const jx = sh ? (Math.sin(t * 127.3) * sh) : 0, jy = sh ? (Math.sin(t * 91.7) * sh) : 0;
+      S3D.shot(SC, [c.p[0] + jx, c.p[1] + jy, c.p[2]], c.g, c.f);
+      ctx.drawImage(SC.renderer.domElement, 0, 0, W, H);
+      // a single-frame flash on the three structural hits
+      for (const h of [ev.shrapnel, ev.hit, ev.collapse]) {
+        const f = clamp(1 - (t - h) / 0.1) * (t >= h ? 1 : 0);
+        if (f > 0) { ctx.save(); ctx.globalAlpha = f * 0.5; ctx.fillStyle = '#ffd9a0'; ctx.fillRect(0, 0, W, H); ctx.restore(); }
+      }
+      archArcs(ctx, t);
+      staleAir(ctx, t);
+      labels(ctx, t);
+      for (const cp of S.captions) caption(ctx, cp, t);
+    },
+    post: { vignette: 0.38, grain: 0.03 },
+  });
+})();

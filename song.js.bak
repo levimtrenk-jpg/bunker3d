@@ -1,0 +1,74 @@
+// THE SONG — the recorded narration is the spine; a sparse bed and event SFX sit under it.
+const path = require('path');
+const { SR, Bus, reverb } = require('./engine/audio/dsp');
+const I = require('./engine/audio/instruments');
+const MIX = require('./engine/audio/mix');
+const sc = require('./score');
+const { BEAT, DURATION, m, ev } = sc;
+
+const N = Math.ceil(DURATION * SR);
+const bus = () => new Bus(N);
+const drums = bus(), bass = bus(), pad = bus(), fx = bus(), verb = bus();
+
+// --- bed: low, tense, one chord per section; it never competes with the voice ---
+const prog = [
+  [['D2', 'A2', 'D3'], 0.0, 9.0, 520],
+  [['D2', 'F2', 'C3'], 9.0, 10.5, 650],
+  [['Bb1', 'F2', 'D3'], 19.4, 5.5, 800],
+  [['D2', 'A2', 'E3'], 24.7, 6.8, 560],   // sealed in: airless
+  [['C2', 'G2', 'D3'], 31.3, 11.0, 900],
+  [['Bb1', 'F2', 'Bb2'], 42.3, 6.0, 750],
+  [['G1', 'D2', 'Bb2'], 48.4, 5.4, 600],
+  [['D2', 'A2', 'D3'], 53.8, 7.0, 1100],  // resolve
+];
+for (const [ch, t0, dur, cutoff] of prog) {
+  for (const n of ch) {
+    const { L, R } = I.padNote(m(n), dur, { cutoff, attack: 0.8, release: 1.6 });
+    pad.addStereo(L, R, t0, 0.075);
+  }
+}
+
+// --- heartbeat under the dangerous stretches only ---
+const K = I.kick();
+const beat = (a, b, step) => { for (let t = a; t < b; t += step) drums.addMono(K, t, 0.4); };
+beat(ev.missiles, ev.dig, BEAT);            // incoming
+beat(ev.sealed, ev.pipe, BEAT * 1.6);       // suffocating, slowing
+beat(ev.collapse, ev.exit2, BEAT * 0.75);   // trapped
+
+// --- one bass note per build step: the structure growing ---
+[[ev.dig, 'D1'], [ev.ceiling, 'F1'], [ev.soil, 'Bb0'], [ev.pipe, 'C1'], [ev.collapse, 'Bb0'], [ev.done, 'D1']]
+  .forEach(([t, n]) => bass.addMono(I.bass(m(n), 2.6, { sub: 1 }), t, 0.42));
+
+// --- event SFX, each tied to a score event ---
+fx.addMono(I.noiseSweep(1.4, 5000, 400, { q: 1, pink: true }), ev.missiles + 0.6, 0.3);  // incoming whistle
+fx.addMono(I.subBoom(2.0), ev.shrapnel, 0.75);                                           // the hut goes
+fx.addMono(I.noiseSweep(1.1, 4000, 500, { q: 1, pink: true }), ev.shrapnel, 0.35);
+fx.addMono(I.thud(60, 0.14), ev.ceiling, 0.5);                                           // slab lands
+fx.addMono(I.subBoom(2.4), ev.hit, 0.85);                                                // direct hit
+fx.addMono(I.noiseSweep(1.8, 6000, 350, { q: 1, pink: true }), ev.hit, 0.4);
+for (let i = 0; i < 5; i++) fx.addMono(I.thud(48, 0.18), ev.soil + i * 0.34, 0.3);        // earth going on
+fx.addMono(I.subBoom(1.6), ev.soil + 2.2, 0.45);                                         // absorbed, muffled
+fx.addMono(I.noiseSweep(2.2, 900, 160, { q: 1.2, pink: true }), ev.sealed, 0.3);          // the air goes dead
+fx.addMono(I.noiseSweep(1.0, 300, 2600, { q: 1, pink: true }), ev.pipe, 0.3);             // the pipe opens
+fx.addMono(I.thud(80, 0.09), ev.filter + 0.5, 0.5);   // the valve slams shut  // blower on
+fx.addMono(I.subBoom(1.4), ev.blastIn, 0.5);                                              // blast down the pipe
+fx.addMono(I.subBoom(2.2), ev.collapse, 0.8);                                             // the house comes down
+fx.addMono(I.noiseSweep(2.0, 3500, 300, { q: 1, pink: true }), ev.collapse, 0.35);
+for (let i = 0; i < 4; i++) fx.addMono(I.thud(55, 0.12), ev.exit2 + i * 0.4, 0.26);        // digging out
+fx.addMono(I.paperFwip(0.9, 7), ev.done, 0.22);
+
+// --- the narration ---
+const voice = MIX.loadAudio(path.join(__dirname, 'out', 'vo.wav'), { at: 0, gain: 1, length: DURATION });
+
+// duck everything under the voice so the words always win
+MIX.duck([pad, bass, drums, fx], voice, { depth: 0.62, attack: 0.02, release: 0.35, threshold: 0.03 });
+
+const stems = { voice, drums, bass, pad, fx, verb: reverb(verb, { room: 0.8, damp: 0.35 }) };
+const GAIN = { voice: 1.0, drums: 0.34, bass: 0.5, pad: 1.7, fx: 0.55, verb: 1 };
+const out = path.join(__dirname, 'out');
+const mix = MIX.mixdown(stems, GAIN, { stemDir: process.env.STEMS ? out : null });
+MIX.highpass(mix, 24);
+MIX.fadeOut(mix, DURATION - 1.2, DURATION);
+const M = MIX.master(mix, parseFloat(process.env.DRIVE || '0.8'), undefined, { lufs: process.env.LUFS ? parseFloat(process.env.LUFS) : -14 });
+MIX.writeWav(path.join(out, 'music.wav'), mix);
+console.log(`wrote out/music.wav (${DURATION.toFixed(2)}s${M.lufs !== undefined ? `, ${M.lufs.toFixed(1)} LUFS` : ''})`);

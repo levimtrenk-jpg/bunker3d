@@ -1,0 +1,10 @@
+out/*.mp4
+out/*.wav
+out/stills/
+out/frames/
+out/.segments-*
+out/.render.lock
+out/*.png
+node_modules/
+*.bak.js
+*.bak2.js

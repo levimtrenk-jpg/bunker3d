@@ -1,0 +1,12 @@
+<!doctype html><body style="margin:0;background:#1a1a1a">
+<canvas id=o width=1620 height=960></canvas><pre id=log style="color:#9f9;font:13px monospace"></pre>
+<script src="scene3d.bundle.js"></script><script>
+const W=1080,H=1920;const t0=performance.now();
+let S,err='';
+try{ const cam=S3D.makeCam(W,H); S=S3D.build(W,H,cam);}catch(e){err=e.stack;}
+const o=document.getElementById('o').getContext('2d');
+const shots=[[[19,9,31],[-3,-3.6,-3],36],[[-9,-1,12],[-7,-5.2,-3],46],[[12,2,14],[6,-4.5,-3],44]];
+const times=[];
+if(S){shots.forEach((s,i)=>{const a=performance.now();try{const c=S3D.shot(S,s[0],s[1],s[2]);o.drawImage(c,i*540,0,540,960);}catch(e){err+=e.stack;}times.push(Math.round(performance.now()-a));});}
+document.getElementById('log').textContent='total '+Math.round(performance.now()-t0)+'ms frames '+times.join(',')+(S&&S.gtao?' GTAO:on':' GTAO:OFF')+' '+err;
+</script></body>
