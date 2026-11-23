@@ -50,7 +50,7 @@ jobs:
           node song.js
       - name: render this slice
         env:
-          RQ: ss=${{ github.event.inputs.quality }}&ao=0
+          RQ: ss=${{ github.event.inputs.quality }}&ao=16
         run: |
           N=${{ github.event.inputs.segments }}
           read FROM TO < <(node -e "
