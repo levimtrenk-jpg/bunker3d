@@ -31,6 +31,37 @@ jobs:
             curl -sL "https://bigsoundbank.com/urban-works-1-s3526.html" | grep -oE 'href="[^"]+\.(mp3|wav|ogg|flac)"' | head
           } > sfxlib/cc0/DISCOVERY.txt
           cat sfxlib/cc0/DISCOVERY.txt
+      - name: fetch
+        if: github.event.inputs.mode == 'fetch'
+        run: |
+          set -u
+          OUT=sfxlib/cc0; mkdir -p $OUT; M=$OUT/MANIFEST.tsv
+          printf "file\tsource\tlicense\n" > $M
+          conv() { ffmpeg -v error -y -i "$1" -t 20 -ac 1 -ar 44100 -b:a 112k "$2"; }
+          for ID in SSE_Library_SWOOSHES SSE_Library_EXPLOSIONS SSE_Library_DESTRUCTION SSE_Library_ROCKS \
+                    SSE_Library_DIRT_SAND SSE_Library_MACHINES SSE_Library_MOTORS SSE_Library_TOOLS \
+                    SSE_Library_METAL SSE_Library_DOORS SSE_Library_RAIN SSE_Library_WIND \
+                    SSE_Library_WATER SSE_Library_AMBIENCE SSE_Library_MECHANICAL SSE_Library_LIQUID_MUD; do
+            META=$(curl -s "https://archive.org/metadata/$ID")
+            LIC=$(echo "$META" | jq -r '.metadata.licenseurl // "none"')
+            case "$LIC" in *publicdomain/zero*) ;; *) echo "SKIP $ID: licence $LIC"; continue;; esac
+            CAT=$(echo $ID | sed 's/SSE_Library_//' | tr 'A-Z' 'a-z'); mkdir -p $OUT/$CAT
+            echo "$META" | jq -r '.files[] | select(.name|test("\\.(wav|mp3|flac|ogg)$";"i")) | select((.size|tonumber) < 6000000) | .name' \
+              | head -14 | while read -r F; do
+                SAFE=$(echo "$F" | sed 's|.*/||; s/[^A-Za-z0-9._-]/_/g; s/\.[A-Za-z0-9]*$//')
+                curl -sL --max-time 60 "https://archive.org/download/$ID/$(python3 -c 'import sys,urllib.parse;print(urllib.parse.quote(sys.argv[1]))' "$F")" -o /tmp/src || continue
+                conv /tmp/src "$OUT/$CAT/$SAFE.mp3" && printf "%s\thttps://archive.org/details/%s\tCC0-1.0\n" "$CAT/$SAFE.mp3" "$ID" >> $M
+              done
+          done
+          for Z in https://opengameart.org/sites/default/files/sfx_100_v2.zip https://opengameart.org/sites/default/files/100-CC0-SFX_0.zip; do
+            rm -rf /tmp/z && mkdir /tmp/z && curl -sL --max-time 120 "$Z" -o /tmp/z/a.zip && unzip -q /tmp/z/a.zip -d /tmp/z || continue
+            mkdir -p $OUT/oga
+            find /tmp/z -type f \( -iname '*.ogg' -o -iname '*.wav' -o -iname '*.mp3' \) | while read -r F; do
+              SAFE=$(basename "$F" | sed 's/[^A-Za-z0-9._-]/_/g; s/\.[A-Za-z0-9]*$//')
+              conv "$F" "$OUT/oga/$SAFE.mp3" && printf "%s\t%s\tCC0-1.0 (opengameart, rubberduck)\n" "oga/$SAFE.mp3" "$Z" >> $M
+            done
+          done
+          du -sh $OUT; wc -l $M
       - name: commit
         run: |
           git config user.name "sfx-bot"; git config user.email "sfx-bot@users.noreply.github.com"
