@@ -71,13 +71,14 @@ for (const [t0, dur] of [[ev.dig + 1.1, 1.5], [ev.ceiling + 0.8, 1.4], [ev.soil 
 }
 
 // --- the narration ---
-const voice = MIX.loadAudio(path.join(__dirname, 'out', 'vo.wav'), { at: 0, gain: 1, length: DURATION });
+// No narration for now (Levi, 24.11): sound only. The voice is decided later, so the music and
+// effects carry the film and are no longer ducked. VO=1 brings the narration back.
+const WITH_VO = process.env.VO === '1';
+const voice = WITH_VO ? MIX.loadAudio(path.join(__dirname, 'out', 'vo.wav'), { at: 0, gain: 1, length: DURATION }) : null;
+if (voice) MIX.duck([pad, bass, drums, fx], voice, { depth: 0.78, attack: 0.02, release: 0.40, threshold: 0.02 });
 
-// duck everything under the voice so the words always win
-MIX.duck([pad, bass, drums, fx], voice, { depth: 0.78, attack: 0.02, release: 0.40, threshold: 0.02 });
-
-const stems = { voice, drums, bass, pad, fx, verb: reverb(verb, { room: 0.8, damp: 0.35 }) };
-const GAIN = { voice: 1.05, drums: 0, bass: 0.34, pad: 0.85, fx: 0.4, verb: 0.7 };
+const stems = { ...(voice ? { voice } : {}), drums, bass, pad, fx, verb: reverb(verb, { room: 0.8, damp: 0.35 }) };
+const GAIN = { voice: 1.05, drums: 0, bass: WITH_VO ? 0.34 : 0.5, pad: WITH_VO ? 0.85 : 1.0, fx: WITH_VO ? 0.4 : 0.85, verb: 0.7 };
 const out = path.join(__dirname, 'out');
 const mix = MIX.mixdown(stems, GAIN, { stemDir: process.env.STEMS ? out : null });
 MIX.highpass(mix, 24);
