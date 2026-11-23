@@ -50499,7 +50499,7 @@ void main() {
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = PCFSoftShadowMap;
     renderer.toneMapping = NeutralToneMapping;
-    renderer.toneMappingExposure = 1.02;
+    renderer.toneMappingExposure = 1.05;
     renderer.outputColorSpace = SRGBColorSpace;
     const _rnd = Math.random;
     let _s = 123456789;
@@ -50532,10 +50532,10 @@ void main() {
     scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
     scene.environmentIntensity = 0.5;
     scene.add(new HemisphereLight(9418480, 8019e3, 0.52));
-    const sun = new DirectionalLight(16768928, 4.6);
+    const sun = new DirectionalLight(16767122, 5.2);
     sun.position.set(17, 31, 25);
     sun.castShadow = true;
-    sun.shadow.mapSize.set(1024, 1024);
+    sun.shadow.mapSize.set(2048, 2048);
     Object.assign(sun.shadow.camera, { left: -32, right: 32, top: 32, bottom: -32, near: 1, far: 110 });
     sun.shadow.camera.updateProjectionMatrix();
     sun.shadow.bias = -5e-4;

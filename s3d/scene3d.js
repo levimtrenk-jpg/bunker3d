@@ -52,7 +52,7 @@ export function build(VW, VH, cam, SS = Number(globalThis.RQ_SS || 0.55)) {
   const renderer = new THREE.WebGLRenderer({ antialias: false, preserveDrawingBuffer: true });
   renderer.setSize(RW, RH, false);
   renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-  renderer.toneMapping = THREE.NeutralToneMapping; renderer.toneMappingExposure = 1.02;   // keeps colour saturation; ACES was washing the sky out
+  renderer.toneMapping = THREE.NeutralToneMapping; renderer.toneMappingExposure = 1.05;   // keeps colour saturation; ACES was washing the sky out
   renderer.outputColorSpace = THREE.SRGBColorSpace;
 
   const _rnd = Math.random; let _s = 123456789;
@@ -80,8 +80,8 @@ export function build(VW, VH, cam, SS = Number(globalThis.RQ_SS || 0.55)) {
   scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
   scene.environmentIntensity = 0.5;
   scene.add(new THREE.HemisphereLight(0x8fb6f0, 0x7a5c38, 0.52));        // less flat fill, so the key light reads
-  const sun = new THREE.DirectionalLight(0xffdfa0, 4.6);                  // warm, low afternoon key
-  sun.position.set(17, 31, 25); sun.castShadow = true; sun.shadow.mapSize.set(1024, 1024);
+  const sun = new THREE.DirectionalLight(0xffd892, 5.2);                  // warm, low afternoon key
+  sun.position.set(17, 31, 25); sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048);
   Object.assign(sun.shadow.camera, { left: -32, right: 32, top: 32, bottom: -32, near: 1, far: 110 });
   sun.shadow.camera.updateProjectionMatrix(); sun.shadow.bias = -0.0005; sun.shadow.normalBias = 0.035;
   scene.add(sun);

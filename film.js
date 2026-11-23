@@ -118,9 +118,9 @@
 
   function animate(t) {
     const P = SC.P;
-    const shake = (t >= ev.shrapnel ? 0.42 : 0) * Math.exp(-(t - ev.shrapnel) * 3.2)
-      + (t >= ev.hit ? 0.5 : 0) * Math.exp(-(t - ev.hit) * 3.0)
-      + (t >= ev.collapse ? 0.4 : 0) * Math.exp(-(t - ev.collapse) * 3.2);
+    const shake = (t >= ev.shrapnel ? 0.16 : 0) * Math.exp(-(t - ev.shrapnel) * 6.0)
+      + (t >= ev.hit ? 0.18 : 0) * Math.exp(-(t - ev.hit) * 6.0)
+      + (t >= ev.collapse ? 0.15 : 0) * Math.exp(-(t - ev.collapse) * 6.0);   // a punch, not a wobble
 
     // --- incoming fire -------------------------------------------------
     const misOn = t < ev.dig;
@@ -497,16 +497,18 @@
       const c = camAt(t);
       const jx = sh ? (Math.sin(t * 127.3) * sh) : 0, jy = sh ? (Math.sin(t * 91.7) * sh) : 0;
       S3D.shot(SC, [c.p[0] + jx, c.p[1] + jy, c.p[2]], c.g, c.f);
+      ctx.filter = 'saturate(1.22) contrast(1.07)';                 // cinematic, not washed out
       ctx.drawImage(SC.renderer.domElement, 0, 0, W, H);
+      ctx.filter = 'none';
       dof(ctx, c.g);
       {                                                     // cinematic grade: warm top, cool floor, vignette
         ctx.save();
         const g = ctx.createLinearGradient(0, 0, 0, H);
-        g.addColorStop(0, 'rgba(255,196,130,0.16)'); g.addColorStop(0.55, 'rgba(255,255,255,0)'); g.addColorStop(1, 'rgba(28,46,86,0.20)');
+        g.addColorStop(0, 'rgba(255,186,110,0.22)'); g.addColorStop(0.5, 'rgba(255,255,255,0)'); g.addColorStop(1, 'rgba(18,36,78,0.26)');
         ctx.globalCompositeOperation = 'soft-light'; ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
         ctx.globalCompositeOperation = 'source-over';
         const v = ctx.createRadialGradient(W / 2, H * 0.46, H * 0.20, W / 2, H * 0.5, H * 0.72);
-        v.addColorStop(0, 'rgba(0,0,0,0)'); v.addColorStop(0.72, 'rgba(0,0,0,0.12)'); v.addColorStop(1, 'rgba(0,0,0,0.44)');
+        v.addColorStop(0, 'rgba(0,0,0,0)'); v.addColorStop(0.68, 'rgba(0,0,0,0.14)'); v.addColorStop(1, 'rgba(0,0,0,0.52)');
         ctx.fillStyle = v; ctx.fillRect(0, 0, W, H);
         ctx.restore();
       }
