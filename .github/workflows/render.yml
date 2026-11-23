@@ -5,7 +5,7 @@ on:
     inputs:
       segments:
         description: how many machines to split the film across
-        default: '9'
+        default: '18'
       quality:
         description: render quality (ss = 3-D buffer scale)
         default: '0.25'
