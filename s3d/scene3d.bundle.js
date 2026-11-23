@@ -51019,17 +51019,33 @@ void main() {
       const kit = KIT(), TREES = ["tree_oak", "tree_pine", "tree_fat", "tree_dark"];
       const trunk = plain(7031602, 1), leafA = plain(5208634, 1), leafB = plain(4155955, 1);
       const tree = (x, z, s) => {
-        const nm = TREES[Math.floor(Math.random() * TREES.length)];
-        if (kit[nm]) return place(gLand, nm, x, 0.3, z, s * 2.6, Math.random() * 6.28);
         const t = new Group();
-        t.position.set(x, 0, z);
-        t.scale.setScalar(s);
+        t.position.set(x, 0.3, z);
+        t.scale.setScalar(s * 0.62);
+        t.rotation.y = Math.random() * 6.28;
         gLand.add(t);
-        cyl(t, 0.22, 0.34, 3, 0, 1.5, 0, trunk, 7);
-        const a1 = sph(t, 1.7, 0, 3.6, 0, leafA, 10);
-        a1.scale.y = 1.15;
-        sph(t, 1.15, 0.7, 4.4, 0.3, leafB, 9);
-        sph(t, 1, -0.8, 4.1, -0.3, leafB, 9);
+        const lean = (Math.random() - 0.5) * 0.12;
+        const h1 = 2.1 + Math.random() * 0.8;
+        const tr1 = cyl(t, 0.1, 0.19, h1 * 2, 0, h1, 0, trunk, 8);
+        tr1.rotation.z = lean;
+        const tr2 = cyl(t, 0.06, 0.11, 1.5, Math.sin(lean) * 2.2, h1 * 2 + 0.6, 0, trunk, 7);
+        tr2.rotation.z = lean * 1.6;
+        const bx0 = Math.sin(lean) * 2.6, by0 = h1 * 2 + 1.1;
+        for (let b = 0; b < 4; b++) {
+          const a = b / 4 * TAU2 + Math.random(), len = 0.9 + Math.random() * 0.7;
+          const br = cyl(t, 0.05, 0.09, len * 2, bx0 + Math.cos(a) * len * 0.7, by0 + len * 0.5, Math.sin(a) * len * 0.7, trunk, 6);
+          br.rotation.z = -Math.cos(a) * 0.7;
+          br.rotation.x = Math.sin(a) * 0.7;
+        }
+        const n = 7 + Math.floor(Math.random() * 4);
+        for (let i = 0; i < n; i++) {
+          const a = i / n * TAU2 + Math.random() * 0.5, rr = i === 0 ? 0 : 0.8 + Math.random() * 1.3;
+          const rad = i === 0 ? 1.5 : 0.7 + Math.random() * 0.7;
+          const col = new Color().setHSL(0.27 + Math.random() * 0.06, 0.38 + Math.random() * 0.14, 0.17 + Math.random() * 0.09);
+          const lf = sph(t, rad, bx0 + Math.cos(a) * rr, by0 + 0.7 + Math.random() * 1.1, Math.sin(a) * rr, plain(col, 0.95), 9);
+          lf.scale.set(1, 0.82 + Math.random() * 0.3, 1);
+          lf.castShadow = true;
+        }
         return t;
       };
       for (const [x, z, s] of [
