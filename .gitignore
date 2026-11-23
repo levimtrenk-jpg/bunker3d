@@ -8,3 +8,6 @@ out/*.png
 node_modules/
 *.bak.js
 *.bak2.js
+*.bak
+*.bak.js
+retime_levi.py
