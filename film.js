@@ -85,7 +85,7 @@
     [ev.blastIn,       [-12.0, 2.2, 15], [-6.6, -1.0, -2.2], 46], // it is still a hole
     [ev.filter,        [-11.5, -3.0, 12],[-6.4, -5.4, -2.2], 46], // the valve and the blower
     [ev.collapse,      [-3, 6.0, 19],    [-10.5, 1.6, -3], 46],  // the house comes down
-    [ev.tunnel,        [5.2, -6.1, -2.25], [16.3, -5.5, -2.25], 54], // straight down the tunnel, daylight at the far shaft// digging the tunnel
+    [ev.tunnel,        [1.5, 3.0, 17],   [13.0, -4.6, -2.2], 52],  // the run of the tunnel on the diagonal, shaft at its end// digging the tunnel
     [ev.exit2,         [20.5, -0.6, 18], [16.0, -3.2, -2.2], 44],// the shaft, far out
     [ev.rain,          [10, 4.0, 19],    [0.4, 0.4, -3],   46], // winter: rain over the plot
     [ev.rain + 4.6,    [6, -2.4, 12],    [1.0, -6.0, -2.4], 46], // and water on the floor inside
@@ -211,15 +211,7 @@
     // --- interior and the person ----------------------------------------
     vis(P.interior, t >= ev.ceiling + 0.4); if (P.interior.visible) riseIn(P.interior, t, ev.ceiling + 0.4, 0.8, 2);
     vis(P.comfort, t >= ev.comfort); if (P.comfort.visible) riseIn(P.comfort, t, ev.comfort, 0.9, 2);
-    const wv = t - (ev.doorNeed + 3.6);                                 // the pressure arrives while he names it
-    vis(P.wave, wv > -0.1 && wv < 2.6);
-    if (P.wave.visible) {
-      const u = clamp(wv / 1.9), e = 1 - Math.pow(1 - u, 2.2);
-      P.wave.children.forEach((m) => {
-        if (m.name === 'ring') { m.scale.setScalar(0.4 + e * 9); m.material.opacity = 0.55 * (1 - u); }
-        else { const d = m.userData; m.position.set(-2.0 + Math.cos(d.a) * (d.r + e * 7), 0.5 + d.up * e * 2.2, -2.6 + Math.sin(d.a) * (d.r + e * 7) * 0.6); m.scale.setScalar(Math.max(0.02, 1 - u * 0.7)); }
-      });
-    }
+    vis(P.wave, false);
     vis(P.sump, t >= ev.sump); if (P.sump.visible) riseIn(P.sump, t, ev.sump, 0.8, 1.5);
     // --- winter: rain outside, water creeping over the floor, the pump taking it away
     const rainOn = t >= ev.rain - 0.6 && t < ev.pump + 3.0;
@@ -414,6 +406,22 @@
     }
   }
 
+  // ---------- the pressure arriving, drawn over the frame -----------------
+  function blast(ctx, t) {
+    const w = t - (ev.doorNeed + 3.5);
+    if (w < 0 || w > 1.7) return;
+    const u = clamp(w / 1.7), e = 1 - Math.pow(1 - u, 2.4);
+    ctx.save();
+    ctx.globalAlpha = (1 - u) * 0.5;                                  // the flash
+    ctx.fillStyle = '#fff3dc'; ctx.fillRect(0, 0, W, H);
+    ctx.globalAlpha = (1 - u) * 0.9;                                  // the front, racing out
+    ctx.strokeStyle = '#fff6e4'; ctx.lineWidth = 26 * (1 - u) + 3;
+    ctx.beginPath(); ctx.arc(W * 0.5, H * 0.46, 60 + e * H * 0.95, 0, Math.PI * 2); ctx.stroke();
+    ctx.globalAlpha = (1 - u) * 0.45; ctx.lineWidth = 9 * (1 - u) + 2;
+    ctx.beginPath(); ctx.arc(W * 0.5, H * 0.46, 20 + e * H * 1.25, 0, Math.PI * 2); ctx.stroke();
+    ctx.restore();
+  }
+
   // ---------- labels pinned to real 3-D points ---------------------------
   const V3 = new TH.Vector3();
   function project(x, y, z) {
@@ -528,6 +536,7 @@
       }
       archArcs(ctx, t);
       staleAir(ctx, t);
+      blast(ctx, t);
       counters(ctx, t);
       labels(ctx, t);
       for (const cp of CAPS) caption(ctx, cp, t);
