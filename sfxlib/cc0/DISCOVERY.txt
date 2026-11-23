@@ -1,0 +1,76 @@
+## archive.org SSE items
+SSE_Library_FIGHT	SSE Library: FIGHT
+SSE_Library_GEOTHERMAL	SSE Library: GEOTHERMAL
+SSE_Library_LIQUID_MUD	SSE Library: LIQUID & MUD
+SSE_Library_SCIFI	SSE Library: SCIFI
+SSE_Library_TRAINS	SSE Library: TRAINS
+SSE_Library_WEATHER	SSE Library: WEATHER
+SSE_Library_DIRT_SAND	SSE Library: DIRT & SAND
+SSE_Library_ARCHIVED	SSE Library: ARCHIVED
+SSE_Library_CLOCKS	SSE Library: CLOCKS
+SSE_Library_FOLEY	SSE Library: FOLEY
+SSE_Library_HORNS	SSE Library: HORNS
+SSE_Library_ICE	SSE Library: ICE
+SSE_Library_MECHANICAL	SSE Library: MECHANICAL
+SSE_Library_BULLETS	SSE Library: BULLETS
+SSE_Library_CHAINS	SSE Library: CHAINS
+SSE_Library_OBJECTS	SSE Library: OBJECTS
+SSE_Library_METAL	SSE Library: METAL
+SSE_Library_CREATURES	SSE Library: CREATURES
+SSE_Library_DOORS	SSE Library: DOORS
+SSE_Library_MOVEMENT	SSE Library: MOVEMENT
+SSE_Library_WHISTLES	SSE Library: WHISTLES
+SSE_Library_WOOD	SSE Library: WOOD
+SSE_Library_AIR	SSE Library: AIR
+SSE_Library_AMBIENCE	SSE Library: AMBIENCE
+SSE_Library_CERAMICS	SSE Library: CERAMICS
+SSE_Library_COMMUNICATIONS	SSE Library: COMMUNICATIONS
+SSE_Library_BOATS	SSE Library: BOATS
+SSE_Library_HUMAN	SSE Library: HUMAN
+SSE_Library_NATURAL_DISASTER	SSE Library: NATURAL DISASTER
+SSE_Library_WEAPONS	SSE Library: WEAPONS
+SSE_Library_WIND	SSE Library: WIND
+SSE_Library_BIRDS	SSE Library: BIRDS
+SSE_Library_FIREWORKS	SSE Library: FIREWORKS
+SSE_Library_GLASS	SSE Library: GLASS
+SSE_Library_MUSICAL	SSE Library: MUSICAL
+SSE_Library_SPORTS	SSE Library: SPORTS
+SSE_Library_ELECTRICITY	SSE Library: ELECTRICITY
+SSE_Library_FOOD_DRINK	SSE Library: FOOD & DRINK
+SSE_Library_MAGIC	SSE Library: MAGIC
+SSE_Library_CARTOON	SSE Library: CARTOON
+SSE_Library_MACHINES	SSE Library: MACHINES
+SSE_Library_MOTORS	SSE Library: MOTORS
+SSE_Library_GUNS	SSE Library: GUNS
+SSE_Library_CROWDS	SSE Library: CROWDS
+SSE_Library_EXPLOSIONS	SSE Library: EXPLOSIONS
+SSE_Library_ROCKS	SSE Library: ROCKS
+SSE_Library_SWOOSHES	SSE Library: SWOOSHES
+SSE_Library_WATER	SSE Library: WATER
+SSE_Library_AIRCRAFT	SSE Library: AIRCRAFT
+SSE_Library_BEEPS	SSE Library: BEEPS
+SSE_Library_DESIGNED	SSE Library: DESIGNED
+SSE_Library_DESTRUCTION	SSE Library: DESTRUCTION
+SSE_Library_FOOTSTEPS	SSE Library: FOOTSTEPS
+SSE_Library_RAIN	SSE Library: RAIN
+SSE_Library_TOOLS	SSE Library: TOOLS
+SSE_Library_VOICES	SSE Library: VOICES
+SSE_Library_ALARMS	SSE Library: ALARMS
+SSE_Library_ANIMALS	SSE Library: ANIMALS
+SSE_Library_BELLS	SSE Library: BELLS
+SSE_Library_FIRE	SSE Library: FIRE
+SSE_Library_GAMES	SSE Library: GAMES
+SSE_Library_SNOW	SSE Library: SNOW
+SSE_Library_VEHICLES	SSE Library: VEHICLES
+
+## opengameart 100 cc0 sfx 2 — zip links
+https://opengameart.org/sites/default/files/sfx_100_v2.zip
+https://opengameart.org/sites/default/files/styles/audio_with_background/public/audio_preview/sfx100v2_prev.ogg
+https://opengameart.org/sites/default/files/styles/medium/public/audio_preview/sfx100v2_prev.ogg.png'><div class='play-button' data-ogg-url='https://opengameart.org/sites/default/files/sfx100v2_prev.ogg' data-mp3-url='https://opengameart.org/sites/default/files/audio_preview/sfx100v2_prev.ogg
+
+## opengameart 100 cc0 sfx (1) — zip links
+https://opengameart.org/sites/default/files/100-CC0-SFX_0.zip
+https://opengameart.org/sites/default/files/styles/audio_with_background/public/audio_preview/sfx_prev_0.ogg
+https://opengameart.org/sites/default/files/styles/medium/public/audio_preview/sfx_prev_0.ogg.png'><div class='play-button' data-ogg-url='https://opengameart.org/sites/default/files/sfx_prev_0.ogg' data-mp3-url='https://opengameart.org/sites/default/files/audio_preview/sfx_prev_0.ogg
+
+## bigsoundbank sample page
