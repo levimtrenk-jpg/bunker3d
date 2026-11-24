@@ -181,6 +181,9 @@
     J.bucket.rotation.z = working ? k[3] : -1.2;
     J.load.visible = working && c > 0.22 && c < 0.62;
     ex.position.y = 0.3 + (working ? Math.abs(Math.sin(c * Math.PI * 2)) * 0.03 : 0);   // it rocks as it works
+    // v2: diesel puffs from the exhaust while working, beacon pulses
+    J.puffs.forEach((p, i) => { const ph = ((t * 1.3 + i / 6) % 1); p.position.set(-1.0 - ph * 0.3, 1.4 + ph * 1.6, -0.6 + ph * 0.2); p.scale.setScalar(0.6 + ph * 2.2); p.material.opacity = working ? (1 - ph) * 0.35 : 0; });
+    J.bea.material.emissiveIntensity = 1 + Math.max(0, Math.sin(t * 9)) * 2.5;
   }
   function buildWork(t) {
     const P = SC.P;
@@ -202,6 +205,7 @@
       const pr = pours.find(([a, b]) => t >= a && t < b);
       U.pour.visible = !!pr;
       if (pr) { const y0 = 1.1, y1 = pr[2]; U.pour.position.set(3.5, (y0 + y1) / 2, -3.4); U.pour.scale.set(1, y0 - y1, 1); }
+      U.splash.forEach((s, i) => { s.visible = !!pr; if (pr) { const ph = (t * 2.2 + i / 10) % 1, an = i * 2.4; s.position.set(3.5 + Math.cos(an) * ph * 0.9, pr[2] + Math.sin(ph * Math.PI) * 0.5, -3.4 + Math.sin(an) * ph * 0.9); s.scale.setScalar(1 - ph * 0.6); } });
     }
   }
   // a rocket lands far off; its fireball and shock front roll in and flatten the hut

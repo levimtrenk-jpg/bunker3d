@@ -50529,6 +50529,17 @@ void main() {
       scene.add(dome);
       scene.userData.dome = dome;
     }
+    {
+      const dir = new Vector3(17, 31, 25).normalize().multiplyScalar(300);
+      const halo = new Mesh(new CircleGeometry(60, 48), new MeshBasicMaterial({ color: 16773312, transparent: true, opacity: 0.22, fog: false, depthWrite: false, toneMapped: false }));
+      const disk = new Mesh(new CircleGeometry(11, 48), new MeshBasicMaterial({ color: 16776168, fog: false, depthWrite: false, toneMapped: false }));
+      for (const m of [halo, disk]) {
+        m.position.copy(dir);
+        m.lookAt(0, 0, 0);
+        m.renderOrder = -1;
+        scene.add(m);
+      }
+    }
     const pmrem = new PMREMGenerator(renderer);
     scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
     scene.environmentIntensity = 0.5;
@@ -50647,6 +50658,38 @@ void main() {
       st.scale.set(1, 0.72 + R() * 0.35, 0.55);
       st.castShadow = false;
     }
+    {
+      const rootM = plain(5913122, 0.95);
+      for (let i = 0; i < 46; i++) {
+        const x = -26 + R() * 52;
+        if (!SOLID.some(([a2, b2]) => x > a2 + 0.3 && x < b2 - 0.3)) continue;
+        let px2 = x, py2 = -0.05, ang = (R() - 0.5) * 0.7, th = 0.08 + R() * 0.05;
+        for (let s = 0; s < 4; s++) {
+          const len = 0.35 + R() * 0.45, nx = px2 + Math.sin(ang) * len, ny = py2 - Math.cos(ang) * len;
+          const c = cyl(gEarth, th * 0.7, th, len, (px2 + nx) / 2, (py2 + ny) / 2, W.z1 - 0.02, rootM, 5);
+          c.rotation.z = ang;
+          c.castShadow = false;
+          if (R() < 0.5) {
+            const b = cyl(gEarth, th * 0.35, th * 0.5, len * 0.6, (px2 + nx) / 2 + 0.12, (py2 + ny) / 2 - 0.12, W.z1 - 0.02, rootM, 4);
+            b.rotation.z = ang + 0.9;
+            b.castShadow = false;
+          }
+          px2 = nx;
+          py2 = ny;
+          ang += (R() - 0.5) * 0.8;
+          th *= 0.72;
+        }
+      }
+      for (let i = 0; i < 260; i++) {
+        const x = -26 + R() * 52, y = -0.4 - R() * 12.5, r = 0.035 + R() ** 2.2 * 0.2;
+        if (!SOLID.some(([a2, b2]) => x > a2 + r && x < b2 - r)) continue;
+        const gv = y < -3 && y > -3.6;
+        const st = sph(gEarth, gv ? r * 0.6 : r, x, y, W.z1 - r * 0.7, plain(new Color().setHSL(0.06 + R() * 0.05, 0.14 + R() * 0.1, 0.16 + R() * 0.2), 0.95), 7);
+        st.scale.set(1 + R() * 0.4, 0.6 + R() * 0.35, 0.5);
+        st.rotation.z = R() * 3;
+        st.castShadow = false;
+      }
+    }
     const gPit = G("pit");
     const wallH = Math.abs(W.floor - W.slabBot);
     const concW = fit(M.conc, 13, wallH, 7, "#d9d6cf");
@@ -50709,6 +50752,24 @@ void main() {
       const r = cyl(gRoof, 0.035, 0.035, 0.8, W.px1 - 0.55 + i * 0.2, W.slabBot - 0.02, -0.22, M.rebar, 7);
       r.rotation.x = 1.2;
       r.rotation.z = 0.15 * i;
+    }
+    {
+      const rb = new MeshStandardMaterial({ color: 8012838, roughness: 0.55, metalness: 0.7 });
+      const zf = W.z1 + 0.07, put = (g, x0, x1, y0, y1, step) => {
+        for (let y = y0; y <= y1 + 1e-6; y += step) {
+          const b = cyl(g, 0.04, 0.04, x1 - x0, (x0 + x1) / 2, y, zf, rb, 6);
+          b.rotation.z = Math.PI / 2;
+          b.castShadow = false;
+        }
+        for (let x = x0; x <= x1 + 1e-6; x += step) {
+          const b = cyl(g, 0.04, 0.04, y1 - y0, x, (y0 + y1) / 2, zf, rb, 6);
+          b.castShadow = false;
+        }
+      };
+      const inset = 0.11;
+      for (const xw of [W.px0 - W.wall, W.px1]) put(gPit, xw + inset, xw + W.wall - inset, W.floor - 0.5, W.slabBot - 0.1, 0.2);
+      put(gPit, W.px0 - W.wall + 0.1, W.px1 + W.wall - 0.1, W.floor - 0.55, W.floor - 0.12, 0.2);
+      put(gRoof, -5.85, 5.85, W.slabBot + 0.1, W.slabTop - 0.05, 0.2);
     }
     const gCap = G("soilcap");
     const berm = (hw, hh, mat, yOff) => {
@@ -51141,7 +51202,22 @@ void main() {
       for (let i = 0; i < 4; i++) bx(bucket, 0.2, 0.08, 0.1, 0.72, -0.42, -0.36 + i * 0.24, st, 0.02);
       const load = sph(bucket, 0.42, 0.3, 0.05, 0, plain(7031340, 1), 10);
       load.scale.set(1, 0.6, 1.1);
-      ex.userData = { sw, boom, stick, bucket, load };
+      const ram = plain(14278112, 0.25, 0.9), hose = plain(1315860, 0.7);
+      cyl(boom, 0.11, 0.11, 1.6, 0.9, -0.36, 0, dk, 10).rotation.z = 1.35;
+      cyl(boom, 0.06, 0.06, 1.2, 1.7, -0.2, 0, ram, 10).rotation.z = 1.35;
+      cyl(stick, 0.09, 0.09, 1.6, 0.4, 0.33, 0, dk, 10).rotation.z = Math.PI / 2;
+      cyl(stick, 0.05, 0.05, 1.1, 1.3, 0.33, 0, ram, 10).rotation.z = Math.PI / 2;
+      for (const z of [-0.14, 0.14]) cyl(boom, 0.03, 0.03, 3.2, 1.6, 0.26, z, hose, 6).rotation.z = Math.PI / 2;
+      const bea = sph(sw, 0.11, 0.35, 1.98, 0.55, new MeshStandardMaterial({ color: 16753178, emissive: 16747008, emissiveIntensity: 2.2 }), 10);
+      for (let i = 0; i < 5; i++) bx(sw, 0.05, 0.45, 1.6, -1.96, 0.5, -0.7 + i * 0.35 + 0, dk, 0.01).position.z = -0.7 + i * 0.35;
+      bx(sw, 1.25, 0.06, 1, 0.35, 1.9, 0.55, dk, 0.02);
+      const puffs = [];
+      for (let i = 0; i < 6; i++) {
+        const p = sph(sw, 0.18, -1, 1.4, -0.6, new MeshStandardMaterial({ color: 4867908, transparent: true, opacity: 0, depthWrite: false, roughness: 1 }), 8);
+        p.castShadow = false;
+        puffs.push(p);
+      }
+      ex.userData = { sw, boom, stick, bucket, load, puffs, bea };
       gEx.userData.ex = ex;
     }
     const gMx = G("mixer");
@@ -51169,7 +51245,22 @@ void main() {
       const pourM = new MeshStandardMaterial({ color: 10131086, roughness: 0.6 });
       const pour = cyl(gMx, 0.16, 0.22, 1, 0, 0, 0, pourM, 10);
       pour.castShadow = false;
-      gMx.userData = { drum, pour };
+      for (let i = 0; i < 6; i++) {
+        const f = bx(drum, 2.4, 0.05, 0.14, 0, 0, 0, red, 0.01);
+        f.rotation.x = i * Math.PI / 3;
+        f.position.set(0, Math.cos(i * Math.PI / 3) * 0.78, Math.sin(i * Math.PI / 3) * 0.78);
+      }
+      cyl(mx, 0.45, 0.2, 0.6, -2.05, 2.45, 0, wh, 14);
+      for (let i = 0; i < 6; i++) bx(mx, 0.05, 0.05, 0.5, 1, 0.95 + i * 0.25, 0.92, dk, 0.01);
+      for (const x of [-1.4, 1.7]) bx(mx, 1.1, 0.08, 1.95, x, 0.92, 0, dk, 0.02);
+      const splash = [];
+      for (let i = 0; i < 10; i++) {
+        const s = sph(gMx, 0.12, 0, 0, 0, pourM, 7);
+        s.castShadow = false;
+        s.visible = false;
+        splash.push(s);
+      }
+      gMx.userData = { drum, pour, splash };
     }
     const gFar = G("farblast");
     {
