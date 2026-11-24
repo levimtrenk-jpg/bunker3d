@@ -50652,7 +50652,7 @@ void main() {
       return g;
     };
     const gEarth = G("earth");
-    const strata = [[0, -1.1, "#efe4d6"], [-1.1, -3, "#e4d6c4"], [-3, -5.6, "#d8c6b0"], [-5.6, -9.2, "#cdb9a2"], [-9.2, -13.5, "#c0ab93"]];
+    const strata = [[0, -0.8, "#6d4c2e"], [-0.8, -2.9, "#b06a39"], [-2.9, -5, "#cf9d60"], [-5, -7, "#9c6b3e"], [-7, -10.2, "#bb8a52"], [-10.2, -13.5, "#7d5c3a"]];
     const column = (x0, x1, yTop, vT, vB) => {
       strata.forEach(([y0, y1], i) => {
         if (y0 > yTop) y0 = yTop;
@@ -50673,7 +50673,7 @@ void main() {
     };
     const SOLID = [[-27, -7.18], [-6.22, -5.62], [5.62, 27]];
     const SLOTS = [[6.22, 7.18, -7.7], [8.5, 10.75, -7.5]];
-    bx(gEarth, 54, 32, ZD, 0, -13.5 - 16, ZC, fit(M.soil2, 54, 32, 4.2, "#b5a189"), 0.04);
+    bx(gEarth, 54, 32, ZD, 0, -13.5 - 16, ZC, fit(M.soil2, 54, 32, 4.2, "#8a6b4a"), 0.04);
     {
       const back = new Mesh(new BoxGeometry(620, 46, 600), fit(M.soil2, 620, 46, 4.2, "#bfab93"));
       back.position.set(0, -0.5 - 23, W.z0 - 300);
@@ -50709,6 +50709,10 @@ void main() {
       st.castShadow = false;
     }
     {
+      for (const [, y1] of strata.slice(0, -1)) for (const [a2, b2] of SOLID)
+        bx(gEarth, b2 - a2, 0.1, 0.06, (a2 + b2) / 2, y1, W.z1 + 0.02, plain(3812384, 1), 0.01).castShadow = false;
+    }
+    {
       const rootM = plain(5913122, 0.95);
       for (let i = 0; i < 46; i++) {
         const x = -26 + R() * 52;
@@ -50733,8 +50737,9 @@ void main() {
       for (let i = 0; i < 260; i++) {
         const x = -26 + R() * 52, y = -0.4 - R() * 12.5, r = 0.035 + R() ** 2.2 * 0.2;
         if (!SOLID.some(([a2, b2]) => x > a2 + r && x < b2 - r)) continue;
-        const gv = y < -3 && y > -3.6;
-        const st = sph(gEarth, gv ? r * 0.6 : r, x, y, W.z1 - r * 0.7, plain(new Color().setHSL(0.06 + R() * 0.05, 0.14 + R() * 0.1, 0.16 + R() * 0.2), 0.95), 7);
+        const gv = y < -5 && y > -7;
+        if (!gv && Math.random() < 0.35) continue;
+        const st = sph(gEarth, gv ? r * 1.5 : r, x, y, W.z1 - r * 0.7, plain(new Color().setHSL(0.06 + R() * 0.05, 0.14 + R() * 0.1, 0.16 + R() * 0.2), 0.95), 7);
         st.scale.set(1 + R() * 0.4, 0.6 + R() * 0.35, 0.5);
         st.rotation.z = R() * 3;
         st.castShadow = false;

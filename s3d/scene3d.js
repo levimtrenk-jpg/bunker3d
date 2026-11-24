@@ -161,7 +161,9 @@ export function build(VW, VH, cam, SS = Number(globalThis.RQ_SS || 0.55)) {
 
   // ============ GROUND: strata as separate slabs, ragged cut face =========
   const gEarth = G('earth');
-  const strata = [[0, -1.1, '#efe4d6'], [-1.1, -3.0, '#e4d6c4'], [-3.0, -5.6, '#d8c6b0'], [-5.6, -9.2, '#cdb9a2'], [-9.2, -13.5, '#c0ab93']];
+  // v2: six real soil horizons, each its own colour - humus, red clay, sand, gravel, grey clay, bedrock.
+  // The old five were all within a few percent of the same beige, so the cut face read as one brown slab.
+  const strata = [[0, -0.8, '#6d4c2e'], [-0.8, -2.9, '#b06a39'], [-2.9, -5.0, '#cf9d60'], [-5.0, -7.0, '#9c6b3e'], [-7.0, -10.2, '#bb8a52'], [-10.2, -13.5, '#7d5c3a']];
   // Columns of ground. yTop < 0 leaves an open slot above — that is how the
   // entrance trench, the vent channel and the escape shaft stay visible.
   const column = (x0, x1, yTop, vT, vB) => {
@@ -179,7 +181,7 @@ export function build(VW, VH, cam, SS = Number(globalThis.RQ_SS || 0.55)) {
   };
   const SOLID = [[-27, -7.18], [-6.22, -5.62], [5.62, 27]];   // right of the pit the ground is solid; the tunnel is bored through it
   const SLOTS = [[6.22, 7.18, -7.7], [8.5, 10.75, -7.5]];
-  bx(gEarth, 54, 32, ZD, 0, -13.5 - 16, ZC, fit(M.soil2, 54, 32, 4.2, '#b5a189'), 0.04);        // bedrock: the block is not floating in the air
+  bx(gEarth, 54, 32, ZD, 0, -13.5 - 16, ZC, fit(M.soil2, 54, 32, 4.2, '#8a6b4a'), 0.04);        // bedrock: the block is not floating in the air
   {
     const back = new THREE.Mesh(new THREE.BoxGeometry(620, 46, 600), fit(M.soil2, 620, 46, 4.2, '#bfab93'));
     back.position.set(0, -0.5 - 23, W.z0 - 300);                  // top stays UNDER the grass plane, or the distance renders brown
@@ -208,6 +210,10 @@ export function build(VW, VH, cam, SS = Number(globalThis.RQ_SS || 0.55)) {
     st.scale.set(1, 0.72 + R() * 0.35, 0.55); st.castShadow = false;
   }
 
+  { // v2: a thin seam line at each horizon, so the layers read as layers and not as a gradient
+    for (const [, y1] of strata.slice(0, -1)) for (const [a2, b2] of SOLID)
+      bx(gEarth, b2 - a2, 0.1, 0.06, (a2 + b2) / 2, y1, W.z1 + 0.02, plain(0x3a2c20, 1), 0.01).castShadow = false;
+  }
   { // v2: roots hanging into the top soil, gravel band, more stones - the cut face reads as real ground
     const rootM = plain(0x5a3a22, 0.95);
     for (let i = 0; i < 46; i++) {
@@ -224,8 +230,9 @@ export function build(VW, VH, cam, SS = Number(globalThis.RQ_SS || 0.55)) {
     for (let i = 0; i < 260; i++) {
       const x = -26 + R() * 52, y = -0.4 - R() * 12.5, r = 0.035 + R() ** 2.2 * 0.2;
       if (!SOLID.some(([a2, b2]) => x > a2 + r && x < b2 - r)) continue;
-      const gv = y < -3.0 && y > -3.6;   // a gravel band between strata
-      const st = sph(gEarth, gv ? r * 0.6 : r, x, y, W.z1 - r * 0.7, plain(new THREE.Color().setHSL(0.06 + R() * 0.05, 0.14 + R() * 0.1, 0.16 + R() * 0.2), 0.95), 7);
+      const gv = y < -5.0 && y > -7.0;   // the gravel horizon: many more, and bigger
+      if (!gv && Math.random() < 0.35) continue;
+      const st = sph(gEarth, gv ? r * 1.5 : r, x, y, W.z1 - r * 0.7, plain(new THREE.Color().setHSL(0.06 + R() * 0.05, 0.14 + R() * 0.1, 0.16 + R() * 0.2), 0.95), 7);
       st.scale.set(1 + R() * 0.4, 0.6 + R() * 0.35, 0.5); st.rotation.z = R() * 3; st.castShadow = false;
     }
   }
