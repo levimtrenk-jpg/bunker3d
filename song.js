@@ -23,12 +23,12 @@ const X = (n, at, g) => one(path.join(CUT, n + '.wav'), at, g);
 const TLc = 0.95;                                                          // one bucket cycle (matches film.js)
 
 // BED
-X('siren', 0, 0.1);                                                        // far-off alarm, under everything
-X('wind', 0, 0.07); X('wind', 11.5, 0.05); X('wind', ev.soil, 0.05);
-X('room', ev.doorNeed - 0.5, 0.05); X('room', ev.doorNeed + 39, 0.05); X('room', ev.doorNeed + 78, 0.05);   // inside: air, not silence
-X('diesel', ev.dig - 0.9, 0.08);                                           // the excavator drives in and works
-X('diesel', ev.soil - 0.4, 0.07);
-X('truck', ev.dig + 4.0, 0.07); X('truck', ev.ceiling - 0.3, 0.06);        // the mixer rolls in
+X('siren', 0, 0.1);                                                        // far-off alarm while the rockets fly
+// REMOVED 24.11 (the "sawing / rattling" Levi heard all film long): the looped recordings wind (metal squeaks),
+// diesel (generator), truck (machine loop) and room (ambient loop, seams every 10 s). Loops of real recordings
+// repeat audibly and, with no voice, the loudness normaliser lifted them. The bed is now ONE synthesised,
+// loop-free brown-noise air tone (air.wav) far under everything.
+X('air', 0, 0.035);
 
 // HERO
 X('whine_boom', ev.missiles + 0.3, 0.3);                                   // rockets over the hill
@@ -64,11 +64,11 @@ const voice = WITH_VO ? MIX.loadAudio(path.join(__dirname, 'out', 'vo.wav'), { a
 if (voice) MIX.duck([pad, bass, drums, fx], voice, { depth: 0.78, attack: 0.02, release: 0.40, threshold: 0.02 });
 
 const stems = { ...(voice ? { voice } : {}), fx, verb: reverb(verb, { room: 0.8, damp: 0.35 }) };
-const GAIN = { voice: 1.05, drums: 0.5, bass: WITH_VO ? 0.34 : 0.36, pad: WITH_VO ? 0.85 : 0.72, fx: WITH_VO ? 0.4 : 0.85, verb: 0.7 };
+const GAIN = { voice: 1.05, drums: 0.5, bass: WITH_VO ? 0.34 : 0.36, pad: WITH_VO ? 0.85 : 0.72, fx: WITH_VO ? 0.4 : 0.8, verb: 0.7 };
 const out = path.join(__dirname, 'out');
 const mix = MIX.mixdown(stems, GAIN, { stemDir: process.env.STEMS ? out : null });
 MIX.highpass(mix, 24);
 MIX.fadeOut(mix, DURATION - 1.2, DURATION);
-const M = MIX.master(mix, parseFloat(process.env.DRIVE || '0.4'), undefined, { lufs: process.env.LUFS ? parseFloat(process.env.LUFS) : -16 });
+const M = MIX.master(mix, parseFloat(process.env.DRIVE || '0.4'), undefined, { lufs: process.env.LUFS ? parseFloat(process.env.LUFS) : (WITH_VO ? -16 : -19.5) });
 MIX.writeWav(path.join(out, 'music.wav'), mix);
 console.log(`wrote out/music.wav (${DURATION.toFixed(2)}s${M.lufs !== undefined ? `, ${M.lufs.toFixed(1)} LUFS` : ''})`);
