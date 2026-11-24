@@ -40,24 +40,26 @@
     return out;
   }
   const CAPS = [];
-  for (const c of S.captions) {
-    const parts = chunks(c.text, 5), span = (c.end - c.t) / parts.length;
-    parts.forEach((p, i) => CAPS.push({ t: c.t + i * span, end: c.t + (i + 1) * span, text: p }));
+  for (const c of S.captions) {                        // v2: 2-3 words at a time, timed by their length in letters
+    const parts = chunks(c.text, 3), wts = parts.map((p) => p.replace(/[^\u05d0-\u05eaA-Za-z0-9]/g, '').length + 2), tot = wts.reduce((x, y) => x + y, 0);
+    let acc = 0;
+    parts.forEach((p, i) => { const t0 = c.t + (c.end - c.t) * acc / tot; acc += wts[i]; CAPS.push({ t: t0, end: c.t + (c.end - c.t) * acc / tot, text: p }); });
   }
   function caption(ctx, c, t) {
     if (t < c.t || t > c.end) return;
-    const inA = clamp((t - c.t) / 0.16), out = clamp((c.end - t) / 0.10);
-    const size = 46, lines = wrap(ctx, c.text, size, W - 260), lh = size * 1.3;
-    const cy = H * 0.80 - (lines.length - 1) * lh * 0.5;
-    ctx.save(); ctx.globalAlpha = Math.min(inA, out);
-    ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic'; ctx.direction = 'rtl';
+    const pop = clamp((t - c.t) / 0.09);                // a quick pop-in, no fade-out: the next chunk simply replaces it
+    const size = 84, lines = wrap(ctx, c.text, size, W - 220), lh = size * 1.25;
+    const cy = H * 0.185 + size * 0.35 - (lines.length - 1) * lh * 0.5;
+    ctx.save(); ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic'; ctx.direction = 'rtl';
+    ctx.font = `800 ${size}px Rubik, RubikL, sans-serif`;
+    const tw = Math.max(...lines.map((l) => ctx.measureText(l).width)), pw = tw + 90, ph = lines.length * lh + 34, py = cy - size * 0.92 - 6;
+    const sc = 0.92 + 0.08 * pop; ctx.translate(W / 2, py + ph / 2); ctx.scale(sc, sc); ctx.translate(-W / 2, -(py + ph / 2));
+    ctx.globalAlpha = 0.86 * pop; ctx.fillStyle = '#0d1014'; rr(ctx, W / 2 - pw / 2, py, pw, ph, 30); ctx.fill();
+    ctx.globalAlpha = pop; ctx.fillStyle = '#f5a623'; rr(ctx, W / 2 - pw / 2, py + ph - 9, pw, 9, 4); ctx.fill();   // accent strip
+    ctx.globalAlpha = pop;
     lines.forEach((l, i) => {
       const y = cy + i * lh;
-      ctx.font = `600 ${size}px Rubik, RubikL, sans-serif`;
-      ctx.shadowColor = 'rgba(0,0,0,0.75)'; ctx.shadowBlur = 14; ctx.shadowOffsetY = 2;
-      ctx.lineWidth = 5; ctx.strokeStyle = 'rgba(10,12,16,0.5)'; ctx.lineJoin = 'round';
-      ctx.strokeText(l, W / 2, y);
-      ctx.shadowColor = 'transparent';
+      ctx.font = `800 ${size}px Rubik, RubikL, sans-serif`;
       ctx.fillStyle = '#ffffff'; ctx.fillText(l, W / 2, y);
     });
     ctx.restore();
@@ -222,6 +224,24 @@
       if (r.visible) { const rad = 2 + (D / 0.75) * e2; r.scale.set(rad, rad, 2 + rad * 0.06); r.material.opacity = 0.9 * (1 - e2 / 1.6); }
     });
   }
+  // v2: one reusable explosion - rocket in, white core, fire, smoke column, sparks, shock ring
+  function boom(g, pos, t0, t, k = 1, rocket = 0) {
+    const e = t - t0, U = g.userData, onR = rocket > 0 && t > t0 - rocket && e < 0;
+    const on = (e > 0 && e < 3.4) || onR; vis(g, on); if (!on) return;
+    g.position.set(pos[0], pos[1], pos[2]);
+    if (U.rk) { U.rk.visible = onR; if (onR) { const f = 1 - (t0 - t) / rocket; U.rk.position.set(14 * (1 - f), 24 * (1 - f * f), 0); U.rk.rotation.z = -0.53; U.rk.scale.setScalar(1.4); } }
+    const live = e > 0;
+    U.core.visible = live && e < 0.5; if (U.core.visible) { U.core.scale.setScalar(k * (0.6 + 6.5 * app(t, t0, 0.22))); U.core.material.opacity = 1 - e / 0.5; }
+    U.fire.forEach((m) => { const d = m.userData; m.visible = live && e < 1.5; if (!m.visible) return;
+      const a = app(t, t0, 0.5); m.position.set(Math.cos(d.a) * d.sp * a * k, d.b * 0.6 + d.up * a * k * 0.8, Math.sin(d.a) * d.sp * a * k * 0.6);
+      m.scale.setScalar(k * (0.35 + 1.7 * a) * Math.max(0.001, 1 - e / 1.5)); m.material.opacity = 0.95 * (1 - e / 1.5); });
+    U.smoke.forEach((m) => { const d = m.userData; m.visible = live && e > d.d * 0.3; if (!m.visible) return;
+      const a = app(t, t0 + d.d, 3.0); m.position.set(Math.cos(d.a) * d.sp * a * k * 1.4, (0.4 + d.up * a * 1.5) * k, Math.sin(d.a) * d.sp * a * k * 0.8);
+      m.scale.setScalar(k * (0.3 + 1.5 * a)); m.material.opacity = 0.8 * (1 - clamp((e - 1.2) / 2.1)); });
+    U.sparks.forEach((m) => { const d = m.userData; m.visible = live && e < 1.6; if (!m.visible) return;
+      const y = Math.max(0, d.up * e - 9.8 * e * e * 0.5) * k; m.position.set(Math.cos(d.a) * d.sp * e * k, y, Math.sin(d.a) * d.sp * e * k * 0.6); m.rotation.set(d.rx * e, d.a, 0); m.scale.setScalar(Math.max(0.001, 1 - e / 1.6)); });
+    U.ring.visible = live && e < 1.3; if (U.ring.visible) { const r = k * (1 + 16 * e); U.ring.scale.set(r, r, 1 + r * 0.05); U.ring.material.opacity = 0.8 * (1 - e / 1.3); }
+  }
   // the pressure front coming through the side doorway, and the dust it drives in
   function doorBlast(t) {
     const P = SC.P, U = P.doorblast.userData, e = t - (ev.blowDoor - 0.05);
@@ -252,10 +272,13 @@
       if (u > 0.9) m.scale.setScalar(1.3 * Math.max(0.001, (1 - u) / 0.1));
     });
 
+    boom(P.boomHut, [-14.6, 1.0, -3.4], ev.shrapnel, t, 1.05);
+    boom(P.boomRoof, [-1.0, 0.5, -3.0], ev.hit, t, 0.85, 0);
+    boom(P.boomHouse, [-10.6, 0.8, -3.0], ev.collapse, t, 0.95);
     // --- hut: stands, then is blown apart -------------------------------
     const hutGone = t >= ev.shrapnel;
-    vis(P.hut, t >= ev.hut - 0.05 && !hutGone);
-    if (!hutGone) riseIn(P.hut, t, ev.hut, 0.9, 5);
+    vis(P.hut, !hutGone);
+    
     vis(P.debris, hutGone && t < ev.dig + 0.3);
     if (P.debris.visible) {
       const e = t - ev.shrapnel;
@@ -382,6 +405,10 @@
       const p = P.person.children[0];
       p.position.y = snapshot.personY + Math.abs(Math.sin(t * 1.1)) * 0.03;   // breathing
       p.rotation.y = -0.55 + Math.sin(t * 0.37) * 0.12;
+      const bad0 = clamp((t - ev.co2) / 2.0) * (1 - clamp((t - ev.pipe - 0.6) / 1.4));   // stale air: he coughs and sways
+      p.rotation.x = bad0 * (0.14 + Math.max(0, Math.sin(t * 7.5)) * 0.1);
+      p.rotation.z = bad0 * Math.sin(t * 2.2) * 0.05;
+      if (t >= ev.lock && t < ev.sealed + 1.4) p.rotation.y = -0.55 + Math.sin(clamp((t - ev.lock) / 1.0) * Math.PI) * 0.5;   // turns to watch the locking wheel
     }
 
     // --- stale air, then filtered ---------------------------------------
@@ -689,7 +716,7 @@
       // a single-frame flash on the three structural hits
       for (const h of [ev.shrapnel, ev.hit, ev.collapse]) {
         const f = clamp(1 - (t - h) / 0.1) * (t >= h ? 1 : 0);
-        if (f > 0) { ctx.save(); ctx.globalAlpha = f * 0.5; ctx.fillStyle = '#ffd9a0'; ctx.fillRect(0, 0, W, H); ctx.restore(); }
+        if (f > 0) { ctx.save(); ctx.globalAlpha = f * 0.32; ctx.fillStyle = '#ffd9a0'; ctx.fillRect(0, 0, W, H); ctx.restore(); }
       }
       archArcs(ctx, t);
       staleAir(ctx, t);

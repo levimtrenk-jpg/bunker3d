@@ -51076,6 +51076,23 @@ void main() {
     lamp.shadow.mapSize.set(512, 512);
     lamp.shadow.bias = -5e-3;
     gCf.add(lamp);
+    const dressHuman = (g) => {
+      const dark = plain(1841688, 0.6), hat = plain(15909424, 0.5, 0.05), white = plain(16184042, 0.5);
+      for (const sx of [-1, 1]) {
+        sph(g, 0.052, sx * 0.095, 2.1, 0.235, white, 8);
+        sph(g, 0.03, sx * 0.095, 2.1, 0.275, dark, 8);
+        const br = bx(g, 0.12, 0.025, 0.03, sx * 0.095, 2.2, 0.245, dark, 0.01);
+        br.rotation.z = sx * -0.14;
+      }
+      sph(g, 0.04, 0, 2.03, 0.27, plain(14262396, 0.75), 8);
+      bx(g, 0.15, 0.03, 0.03, 0, 1.94, 0.245, plain(9059120, 0.7), 0.01);
+      bx(g, 0.14, 0.12, 0.14, 0, 1.9, 0, plain(15250572, 0.75), 0.04);
+      bx(g, 0.64, 0.07, 0.38, 0, 1.02, 0, dark, 0.02);
+      const h = sph(g, 0.3, 0, 2.2, 0, hat, 18);
+      h.scale.set(1, 0.62, 1);
+      bx(g, 0.5, 0.035, 0.34, 0, 2.2, 0.2, hat, 0.015);
+      bx(g, 0.06, 0.05, 0.5, 0, 2.38, 0, hat, 0.015);
+    };
     const gPer = G("person");
     const skin = plain(15250572, 0.75), shirt = plain(14246943, 0.85), pants = plain(3622492, 0.9);
     const per = new Group();
@@ -51091,6 +51108,7 @@ void main() {
       bx(per, 0.21, 0.95, 0.23, s * 0.17, 0.5, 0, pants, 0.07);
       bx(per, 0.24, 0.14, 0.42, s * 0.17, 0.07, 0.08, plain(2828067, 0.9), 0.05);
     }
+    dressHuman(per);
     const gSky = G("clouds");
     {
       const topM = new MeshStandardMaterial({ color: 16777215, emissive: 16777215, emissiveIntensity: 0.72, roughness: 1, fog: false });
@@ -51356,6 +51374,48 @@ void main() {
       rk.add(tr);
       gFar.userData = { fire, dust, rings, rk, FX, FZ };
     }
+    const mkBoom = (name, withRocket) => {
+      const g = G(name), TAU22 = Math.PI * 2;
+      const core = sph(g, 1, 0, 0, 0, new MeshBasicMaterial({ color: 16774084, transparent: true, opacity: 1, fog: false, depthWrite: false }), 16);
+      const fire = [], smoke = [], sparks = [];
+      for (let i = 0; i < 16; i++) {
+        const m = sph(g, 0.45 + R() * 0.5, 0, 0, 0, new MeshBasicMaterial({ color: i % 3 ? 16747039 : 16761914, transparent: true, opacity: 0.95, fog: false, depthWrite: false }), 10);
+        m.userData = { a: R() * TAU22, b: (R() - 0.2) * 1.4, sp: 1.6 + R() * 3.4, up: 1 + R() * 3.5 };
+        fire.push(m);
+      }
+      for (let i = 0; i < 26; i++) {
+        const m = sph(g, 0.6 + R() * 0.8, 0, 0, 0, new MeshStandardMaterial({ color: i % 2 ? 4866618 : 3025447, roughness: 1, transparent: true, opacity: 0.88, depthWrite: false }), 10);
+        m.userData = { a: R() * TAU22, sp: 0.6 + R() * 2.4, up: 1.4 + R() * 3.2, d: R() * 0.35 };
+        smoke.push(m);
+      }
+      for (let i = 0; i < 36; i++) {
+        const m = new Mesh(new BoxGeometry(0.12, 0.12, 0.36), new MeshBasicMaterial({ color: i % 2 ? 16765562 : 16742938, fog: false }));
+        m.userData = { a: R() * TAU22, sp: 3 + R() * 9, up: 4 + R() * 9, rx: R() * 9 };
+        g.add(m);
+        sparks.push(m);
+      }
+      const ring = new Mesh(new TorusGeometry(1, 0.22, 8, 64), new MeshBasicMaterial({ color: 16773330, transparent: true, opacity: 0.8, side: DoubleSide, depthWrite: false, fog: false }));
+      ring.rotation.x = Math.PI / 2;
+      g.add(ring);
+      let rk = null;
+      if (withRocket) {
+        rk = new Group();
+        g.add(rk);
+        cyl(rk, 0.34, 0.34, 3.2, 0, 0, 0, M.steelD, 12);
+        const n = new Mesh(new ConeGeometry(0.36, 1.1, 12), M.steelD);
+        n.position.y = -2.1;
+        n.rotation.x = Math.PI;
+        rk.add(n);
+        const tr = new Mesh(new ConeGeometry(0.4, 4.4, 10), new MeshBasicMaterial({ color: 16756810, transparent: true, opacity: 0.85 }));
+        tr.position.y = 3.8;
+        rk.add(tr);
+      }
+      g.userData = { core, fire, smoke, sparks, ring, rk };
+      return g;
+    };
+    mkBoom("boomHut", false);
+    mkBoom("boomRoof", true);
+    mkBoom("boomHouse", false);
     const gDB = G("doorblast");
     {
       const fm = new MeshBasicMaterial({ color: 16773850, transparent: true, opacity: 0.45, side: DoubleSide, depthWrite: false, fog: false });
@@ -51385,6 +51445,7 @@ void main() {
         bx(wk, 0.21, 0.95, 0.23, s * 0.17, 0.5, 0, pa, 0.07);
         bx(wk, 0.24, 0.14, 0.42, s * 0.17, 0.07, 0.08, plain(2828067, 0.9), 0.05);
       }
+      dressHuman(wk);
       const arms = new Group();
       arms.position.set(0, 1.9, 0);
       wk.add(arms);

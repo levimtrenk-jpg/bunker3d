@@ -479,6 +479,22 @@ export function build(VW, VH, cam, SS = Number(globalThis.RQ_SS || 0.55)) {
   lamp.shadow.mapSize.set(512, 512); lamp.shadow.bias = -0.005; gCf.add(lamp);
 
   // ============ PERSON (articulated) =====================================
+  // v2 character: face, hard hat, neck and belt on top of the plain body (shared by the surface worker and the man inside)
+  const dressHuman = (g) => {
+    const dark = plain(0x1c1a18, 0.6), hat = plain(0xf2c230, 0.5, 0.05), white = plain(0xf6f2ea, 0.5);
+    for (const sx of [-1, 1]) {
+      sph(g, 0.052, sx * 0.095, 2.1, 0.235, white, 8);                      // eye white
+      sph(g, 0.03, sx * 0.095, 2.1, 0.275, dark, 8);                         // pupil
+      const br = bx(g, 0.12, 0.025, 0.03, sx * 0.095, 2.2, 0.245, dark, 0.01); br.rotation.z = sx * -0.14;   // brow
+    }
+    sph(g, 0.04, 0, 2.03, 0.27, plain(0xd9a07c, 0.75), 8);                  // nose
+    bx(g, 0.15, 0.03, 0.03, 0, 1.94, 0.245, plain(0x8a3b30, 0.7), 0.01);   // mouth
+    bx(g, 0.14, 0.12, 0.14, 0, 1.9, 0, plain(0xe8b48c, 0.75), 0.04);        // neck
+    bx(g, 0.64, 0.07, 0.38, 0, 1.02, 0, dark, 0.02);                         // belt
+    const h = sph(g, 0.3, 0, 2.2, 0, hat, 18); h.scale.set(1, 0.62, 1);     // hard hat dome
+    bx(g, 0.5, 0.035, 0.34, 0, 2.2, 0.2, hat, 0.015);                        // brim
+    bx(g, 0.06, 0.05, 0.5, 0, 2.38, 0.0, hat, 0.015);                        // centre ridge
+  };
   const gPer = G('person');
   const skin = plain(0xe8b48c, 0.75), shirt = plain(0xd9641f, 0.85), pants = plain(0x37465c, 0.9);
   const per = new THREE.Group(); per.position.set(-0.5, fy, -2.3); per.rotation.y = -0.55; gPer.add(per);
@@ -491,6 +507,7 @@ export function build(VW, VH, cam, SS = Number(globalThis.RQ_SS || 0.55)) {
     bx(per, 0.21, 0.95, 0.23, s * 0.17, 0.5, 0, pants, 0.07);
     bx(per, 0.24, 0.14, 0.42, s * 0.17, 0.07, 0.08, plain(0x2b2723, 0.9), 0.05);
   }
+  dressHuman(per);
 
   // ============ LANDSCAPE: what makes it a place, not a diagram ===========
   const gSky = G('clouds');
@@ -683,6 +700,22 @@ export function build(VW, VH, cam, SS = Number(globalThis.RQ_SS || 0.55)) {
     gFar.userData = { fire, dust, rings, rk, FX, FZ };
   }
 
+  // ============ v2 EXPLOSIONS: fireball, smoke column, sparks, shock ring, falling rocket ====
+  const mkBoom = (name, withRocket) => {
+    const g = G(name), TAU2 = Math.PI * 2;
+    const core = sph(g, 1, 0, 0, 0, new THREE.MeshBasicMaterial({ color: 0xfff3c4, transparent: true, opacity: 1, fog: false, depthWrite: false }), 16);
+    const fire = [], smoke = [], sparks = [];
+    for (let i = 0; i < 16; i++) { const m = sph(g, 0.45 + R() * 0.5, 0, 0, 0, new THREE.MeshBasicMaterial({ color: i % 3 ? 0xff8a1f : 0xffc43a, transparent: true, opacity: 0.95, fog: false, depthWrite: false }), 10); m.userData = { a: R() * TAU2, b: (R() - 0.2) * 1.4, sp: 1.6 + R() * 3.4, up: 1 + R() * 3.5 }; fire.push(m); }
+    for (let i = 0; i < 26; i++) { const m = sph(g, 0.6 + R() * 0.8, 0, 0, 0, new THREE.MeshStandardMaterial({ color: i % 2 ? 0x4a423a : 0x2e2a27, roughness: 1, transparent: true, opacity: 0.88, depthWrite: false }), 10); m.userData = { a: R() * TAU2, sp: 0.6 + R() * 2.4, up: 1.4 + R() * 3.2, d: R() * 0.35 }; smoke.push(m); }
+    for (let i = 0; i < 36; i++) { const m = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.12, 0.36), new THREE.MeshBasicMaterial({ color: i % 2 ? 0xffd27a : 0xff7a1a, fog: false })); m.userData = { a: R() * TAU2, sp: 3 + R() * 9, up: 4 + R() * 9, rx: R() * 9 }; g.add(m); sparks.push(m); }
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(1, 0.22, 8, 64), new THREE.MeshBasicMaterial({ color: 0xfff0d2, transparent: true, opacity: 0.8, side: THREE.DoubleSide, depthWrite: false, fog: false })); ring.rotation.x = Math.PI / 2; g.add(ring);
+    let rk = null;
+    if (withRocket) { rk = new THREE.Group(); g.add(rk); cyl(rk, 0.34, 0.34, 3.2, 0, 0, 0, M.steelD, 12); const n = new THREE.Mesh(new THREE.ConeGeometry(0.36, 1.1, 12), M.steelD); n.position.y = -2.1; n.rotation.x = Math.PI; rk.add(n); const tr = new THREE.Mesh(new THREE.ConeGeometry(0.4, 4.4, 10), new THREE.MeshBasicMaterial({ color: 0xffb04a, transparent: true, opacity: 0.85 })); tr.position.y = 3.8; rk.add(tr); }
+    g.userData = { core, fire, smoke, sparks, ring, rk };
+    return g;
+  };
+  mkBoom('boomHut', false); mkBoom('boomRoof', true); mkBoom('boomHouse', false);
+
   // ============ BLAST through the side door: the front and the dust ======
   const gDB = G('doorblast');
   {
@@ -706,6 +739,7 @@ export function build(VW, VH, cam, SS = Number(globalThis.RQ_SS || 0.55)) {
       bx(wk, 0.21, 0.95, 0.23, s * 0.17, 0.5, 0, pa, 0.07);
       bx(wk, 0.24, 0.14, 0.42, s * 0.17, 0.07, 0.08, plain(0x2b2723, 0.9), 0.05);
     }
+    dressHuman(wk);
     const arms = new THREE.Group(); arms.position.set(0, 1.9, 0); wk.add(arms);   // both arms + shovel swing together
     for (const s of [-1, 1]) {
       const a = bx(arms, 0.17, 0.8, 0.17, s * 0.39, -0.42, 0.06, sh, 0.08); a.rotation.x = -0.5;

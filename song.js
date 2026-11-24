@@ -19,8 +19,8 @@ const drums = bus(), bass = bus(), pad = bus(), fx = bus(), verb = bus();
 // Cut on purpose: counter ticks/chimes, whooshes on camera moves, anything not on screen.
 const CUT = path.join(__dirname, 'sfx', 'cut');
 const one = (file, at, gain) => { try { const b = MIX.loadAudio(file, { at, gain, length: DURATION }); fx.addStereo(b.L, b.R, 0, 1); } catch (e) { console.warn('missing sfx', file); } };
-const X = (n, at, g) => one(path.join(CUT, n + '.wav'), at, g);
-const TLc = 0.95;                                                          // one bucket cycle (matches film.js)
+const X = (n, at, g) => at > DURATION ? null : one(path.join(CUT, n + '.wav'), at, g);
+const TLc = 0.45;                                                          // one bucket cycle (matches film.js)
 
 // BED
 X('siren', 0, 0.1);                                                        // far-off alarm while the rockets fly
@@ -42,7 +42,7 @@ X('big_boom', ev.collapse - 0.03, 0.62); X('house_collapse', ev.collapse + 0.15,
 // ACTION
 for (let i = 0; i < 5; i++) X('shovel', ev.dig + i * TLc + 0.15, 0.22);    // each bucket bite
 for (let i = 0; i < 5; i++) X('dirt_fall', ev.dig + i * TLc + 0.62, 0.16); // each dump on the spoil heap
-for (const a of [0, 1.1, 2.2]) X('water', ev.dig + 5 * TLc + 0.15 + a, 0.12); // three wall pours
+for (const a of [0, 0.7, 1.4]) X('water', ev.dig + 5 * TLc + 0.15 + a, 0.12); // three wall pours
 X('water', ev.ceiling + 0.2, 0.13); X('water', ev.ceiling + 1.4, 0.13);    // the slab, two passes
 for (let i = 0; i < 5; i++) X('dirt_fall', ev.soil + 0.1 + i * TLc + 0.6, 0.2); // earth onto the roof
 X('door_rattle', ev.doorNeed + 1.5, 0.2);                                  // the plain door shakes
