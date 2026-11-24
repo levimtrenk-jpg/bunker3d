@@ -58,17 +58,17 @@ export function build(VW, VH, cam, SS = Number(globalThis.RQ_SS || 0.55)) {
   const _rnd = Math.random; let _s = 123456789;
   Math.random = () => { _s = (_s * 1664525 + 1013904223) >>> 0; return _s / 4294967296; };
   const scene = new THREE.Scene();
-  scene.fog = new THREE.Fog(0xcfe4f6, 150, 340);
+  scene.fog = new THREE.Fog(0xcfe4f6, 420, 1250);   // v2: aerial perspective over real distance, so ridges fade instead of vanishing
   {                                   // sky: a vertex-coloured dome, so the gradient is exactly where we put it
-    const geo = new THREE.SphereGeometry(320, 32, 24);
+    const geo = new THREE.SphereGeometry(1500, 32, 24);
     const pos = geo.attributes.position, col = new Float32Array(pos.count * 3);
     const cTop = new THREE.Color('#0f4aa8').convertSRGBToLinear(), cMid = new THREE.Color('#67a6ea').convertSRGBToLinear(),
           cHaze = new THREE.Color('#e9eef0').convertSRGBToLinear(), cDn = new THREE.Color('#b9c6b4').convertSRGBToLinear();
     const tmp = new THREE.Color();
     for (let i = 0; i < pos.count; i++) {
-      const y = pos.getY(i) / 320;                       // -1 at the nadir, +1 at the zenith
-      if (y >= 0.42) tmp.copy(cMid).lerp(cTop, Math.min(1, (y - 0.42) / 0.5));
-      else if (y >= 0.03) tmp.copy(cHaze).lerp(cMid, (y - 0.03) / 0.39);
+      const y = pos.getY(i) / 1500;                       // -1 at the nadir, +1 at the zenith
+      if (y >= 0.26) tmp.copy(cMid).lerp(cTop, Math.min(1, (y - 0.26) / 0.55));
+      else if (y >= 0.0) tmp.copy(cHaze).lerp(cMid, y / 0.26);
       else tmp.copy(cHaze).lerp(cDn, Math.min(1, -y / 0.25));
       col[i * 3] = tmp.r; col[i * 3 + 1] = tmp.g; col[i * 3 + 2] = tmp.b;
     }
@@ -82,6 +82,33 @@ export function build(VW, VH, cam, SS = Number(globalThis.RQ_SS || 0.55)) {
     const disk = new THREE.Mesh(new THREE.CircleGeometry(11, 48), new THREE.MeshBasicMaterial({ color: 0xfffbe8, fog: false, depthWrite: false, toneMapped: false }));
     for (const m of [halo, disk]) { m.position.copy(dir); m.lookAt(0, 0, 0); m.renderOrder = -1; scene.add(m); }
   }
+  // v2: the sun, low in the -z sky - the direction every camera in the film looks.
+  // The earlier attempt put it at +z, behind the camera, so it was never once on screen.
+  const SUNPOS = new THREE.Vector3(-96, 97, -980);
+  {
+    const bill = (r, col, op) => {
+      const m = new THREE.Mesh(new THREE.CircleGeometry(r, 48),
+        new THREE.MeshBasicMaterial({ color: col, transparent: op < 1, opacity: op, fog: false, depthWrite: false, toneMapped: false }));
+      m.position.copy(SUNPOS); m.lookAt(0, 6, 40); m.renderOrder = -1; scene.add(m); return m;
+    };
+    bill(170, 0xffe9b0, 0.15); bill(90, 0xfff0c6, 0.28); bill(34, 0xfffdf2, 1);
+    const glow = new THREE.Mesh(new THREE.PlaneGeometry(3200, 210),       // warm haze lying along the horizon
+      new THREE.MeshBasicMaterial({ color: 0xffd9a0, transparent: true, opacity: 0.3, fog: false, depthWrite: false, toneMapped: false }));
+    glow.position.set(-96, 26, -1150); glow.renderOrder = -1; scene.add(glow);
+  }
+  { // birds: three small flocks drifting in the same band of sky
+    const gB = new THREE.Group(); gB.name = 'birds'; scene.add(gB);
+    const bm = new THREE.MeshBasicMaterial({ color: 0x3b4450, fog: false });
+    for (let f = 0; f < 3; f++) {
+      const fl = new THREE.Group(); fl.position.set(-150 + f * 150, 32 + f * 7, -230 - f * 70); gB.add(fl); fl.scale.setScalar(2.2 + f);
+      fl.userData = { x0: fl.position.x, sp: 0.5 + f * 0.25 };
+      for (let i = 0; i < 6; i++) {
+        const b = new THREE.Group(); b.position.set((i % 3) * 5 - 5, (i / 3 | 0) * 3.2, (i % 2) * 4); fl.add(b);
+        for (const s of [-1, 1]) { const w = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.12, 0.3), bm); w.position.x = s * 0.8; w.rotation.z = s * 0.45; b.add(w); }
+      }
+    }
+    scene.userData.birds = gB;
+  }
   const pmrem = new THREE.PMREMGenerator(renderer);          // IBL, no network
   scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
   scene.environmentIntensity = 0.5;
@@ -93,8 +120,8 @@ export function build(VW, VH, cam, SS = Number(globalThis.RQ_SS || 0.55)) {
   scene.add(sun);
   // IBL tried and dropped: we already have a sky dome + hemisphere fill, so an environment map
   // double-counted the ambient and threw a blue cast over every shaded surface.
-  const rim = new THREE.DirectionalLight(0xcfe0f5, 0.75);          // rim light: separates the structure from the ground
-  rim.position.set(-20, 9, -26); scene.add(rim);
+  const rim = new THREE.DirectionalLight(0xffd7a2, 0.95);          // rim light: now aimed from the visible sun, so the backlight is motivated
+  rim.position.copy(SUNPOS).normalize().multiplyScalar(40); scene.add(rim);
   const fill = new THREE.DirectionalLight(0x9fc0e8, 0.3); fill.position.set(-20, 10, 22); scene.add(fill);
 
   const M = {
@@ -462,12 +489,14 @@ export function build(VW, VH, cam, SS = Number(globalThis.RQ_SS || 0.55)) {
   const gSky = G('clouds');
   {
     const topM = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xfff6ea, emissiveIntensity: 0.55, roughness: 1, fog: false });
-    const midM = new THREE.MeshStandardMaterial({ color: 0xeef1f5, emissive: 0xd9e3ee, emissiveIntensity: 0.4, roughness: 1, fog: false });
-    const baseM = new THREE.MeshStandardMaterial({ color: 0xb9c4d2, emissive: 0x9fadc0, emissiveIntensity: 0.32, roughness: 1, fog: false });
-    const layers = [[9, 70, 150, 1.0], [10, 58, 220, 0.8], [8, 48, 290, 0.6]];   // count, height, distance, scale: near / mid / far
+    const midM = new THREE.MeshStandardMaterial({ color: 0xfbfcfe, emissive: 0xeef3fa, emissiveIntensity: 0.5, roughness: 1, fog: false });
+    const baseM = new THREE.MeshStandardMaterial({ color: 0xe9eef5, emissive: 0xd7e0ea, emissiveIntensity: 0.34, roughness: 1, fog: false });
+    // v2: the old heights (48-150) put every cloud ABOVE the top of a 9:16 frame, which is why
+    // none of them were ever on screen. In this framing the sky band is roughly 0-10 degrees up.
+    const layers = [[7, 76, 430, 2.6], [8, 115, 700, 2.3], [7, 162, 1010, 2.0]];   // count, height, distance, scale: near / mid / far
     for (const [cnt, hgt, dist, ls] of layers) for (let i = 0; i < cnt; i++) {
       const c = new THREE.Group();
-      c.position.set(-260 + Math.random() * 520, hgt + Math.random() * 26, -dist - Math.random() * 40);
+      c.position.set(-900 + Math.random() * 1800, hgt + Math.random() * 34, -dist - Math.random() * 150);
       const sc = (6 + Math.random() * 7) * ls, wide = 3 + (Math.random() * 3 | 0);
       for (let k = 0; k < wide; k++) {                 // flat, darker base: the underside in shadow
         const b = sph(c, sc * (0.9 + Math.random() * 0.4), (k - wide / 2) * sc * 1.1, 0, Math.random() * sc * 0.4, baseM, 12);
@@ -486,8 +515,8 @@ export function build(VW, VH, cam, SS = Number(globalThis.RQ_SS || 0.55)) {
   }
   const gLand = G('land');
   {
-    const gr = new THREE.Mesh(new THREE.PlaneGeometry(600, 420, 1, 1), plain(0x74a155, 1));   // a textured map at this size minifies to brown mush
-    gr.rotation.x = -Math.PI / 2; gr.position.set(0, 0.3, W.z0 - 210); gr.receiveShadow = true; gLand.add(gr);
+    const gr = new THREE.Mesh(new THREE.PlaneGeometry(3400, 2800, 1, 1), plain(0x74a155, 1));   // reaches a true horizon now, instead of ending at the far clip
+    gr.rotation.x = -Math.PI / 2; gr.position.set(0, 0.3, W.z0 - 1400); gr.receiveShadow = true; gLand.add(gr);
     for (const sx of [-1, 1]) {                                                  // grass on the block top, left and right of the pit
       const wgr = 290, cx = sx * (5.9 + wgr / 2);
       const gm = fit(M.grass, wgr, ZD, 3.0); gm.side = THREE.DoubleSide;   // seen from just below, a one-sided plane shows sky through it
@@ -496,11 +525,26 @@ export function build(VW, VH, cam, SS = Number(globalThis.RQ_SS || 0.55)) {
     }
   }
   {
-    const hillMat = plain(0x6f9a52, 1), hillFar = plain(0x86a98c, 1);
-    for (let i = 0; i < 7; i++) {                      // a low ridge: only the crowns clear the horizon
-      const r = 18 + Math.random() * 14;
-      const h = sph(gLand, r, -140 + i * 46 + Math.random() * 18, -r * 0.55, -150 - Math.random() * 40, i % 2 ? hillFar : hillMat, 14);
-      h.scale.y = 0.5 + Math.random() * 0.2; h.castShadow = h.receiveShadow = false;
+    // v2: three ridge bands with aerial perspective. The old ridge topped out ~1.5 units
+    // above the ground at 200 m away - under half a degree, i.e. invisible. These clear the horizon.
+    const BANDS = [[-520, 31, 0x74974f, 1.00], [-770, 47, 0x89a584, 0.8], [-1060, 64, 0xa3b7c6, 0.6]];
+    for (const [bz, top, col, sat] of BANDS) {
+      const m = plain(new THREE.Color(col), 1); m.fog = false;
+      for (let i = 0; i < 16; i++) {
+        const r = 120 + Math.random() * 150, x = -1500 + i * 200 + Math.random() * 110;
+        const h = sph(gLand, r, x, 0, bz - Math.random() * 90, m, 16);
+        const sy = (0.22 + Math.random() * 0.13) * sat + 0.08;
+        h.scale.set(1.3, sy, 1); h.position.y = (top + Math.random() * 11) - r * sy;   // only the crown shows
+        h.castShadow = h.receiveShadow = false;
+      }
+    }
+    { // a treeline on the near ridge, so the crest is not a bare curve
+      const tm = plain(0x55714a, 1); tm.fog = false;
+      for (let i = 0; i < 150; i++) {
+        const x = -1100 + Math.random() * 2200, hh = 8 + Math.random() * 10;
+        const c = cyl(gLand, 0.2, 2.6 + Math.random() * 2, hh, x, 25 + Math.random() * 6 + hh / 2, -512 - Math.random() * 50, tm, 5);
+        c.castShadow = c.receiveShadow = false;
+      }
     }
     const kit = KIT(), TREES = ['tree_oak', 'tree_pine', 'tree_fat', 'tree_dark'];
     const trunk = plain(0x6b4b32, 1), leafA = plain(0x4f7a3a, 1), leafB = plain(0x3f6a33, 1);
@@ -855,7 +899,7 @@ export function build(VW, VH, cam, SS = Number(globalThis.RQ_SS || 0.55)) {
   if (SS > 0.85) try { composer.addPass(new SMAAPass(RW, RH)); } catch (e) { console.log('SMAA disabled: ' + e.message); }
   Math.random = _rnd;
 
-  return { renderer, scene, composer, cam, P, M, sun, lamp, VW, VH, RW, RH, gtao, hemi, rim, fill, dome: scene.userData.dome };
+  return { renderer, scene, composer, cam, P, M, sun, lamp, VW, VH, RW, RH, gtao, hemi, rim, fill, dome: scene.userData.dome, birds: scene.userData.birds };
 }
 
 // CC0 low-poly models (Net Forge asset library) — loaded before build() so build stays synchronous
@@ -902,7 +946,7 @@ function place(parent, name, x, y, z, s = 1, ry = 0) {
   const o = src.clone(true); o.position.set(x, y, z); o.scale.setScalar(s); o.rotation.y = ry; parent.add(o); return o;
 }
 
-export function makeCam(VW, VH) { return new THREE.PerspectiveCamera(36, VW / VH, 0.3, 420); }
+export function makeCam(VW, VH) { return new THREE.PerspectiveCamera(36, VW / VH, 0.3, 1800); }
 
 export function shot(S, pos, tgt, fov) {
   S.cam.position.set(pos[0], pos[1], pos[2]);

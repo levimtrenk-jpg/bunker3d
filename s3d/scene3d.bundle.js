@@ -50508,16 +50508,16 @@ void main() {
       return _s / 4294967296;
     };
     const scene = new Scene();
-    scene.fog = new Fog(13624566, 150, 340);
+    scene.fog = new Fog(13624566, 420, 1250);
     {
-      const geo = new SphereGeometry(320, 32, 24);
+      const geo = new SphereGeometry(1500, 32, 24);
       const pos = geo.attributes.position, col = new Float32Array(pos.count * 3);
       const cTop = new Color("#0f4aa8").convertSRGBToLinear(), cMid = new Color("#67a6ea").convertSRGBToLinear(), cHaze = new Color("#e9eef0").convertSRGBToLinear(), cDn = new Color("#b9c6b4").convertSRGBToLinear();
       const tmp3 = new Color();
       for (let i = 0; i < pos.count; i++) {
-        const y = pos.getY(i) / 320;
-        if (y >= 0.42) tmp3.copy(cMid).lerp(cTop, Math.min(1, (y - 0.42) / 0.5));
-        else if (y >= 0.03) tmp3.copy(cHaze).lerp(cMid, (y - 0.03) / 0.39);
+        const y = pos.getY(i) / 1500;
+        if (y >= 0.26) tmp3.copy(cMid).lerp(cTop, Math.min(1, (y - 0.26) / 0.55));
+        else if (y >= 0) tmp3.copy(cHaze).lerp(cMid, y / 0.26);
         else tmp3.copy(cHaze).lerp(cDn, Math.min(1, -y / 0.25));
         col[i * 3] = tmp3.r;
         col[i * 3 + 1] = tmp3.g;
@@ -50540,6 +50540,56 @@ void main() {
         scene.add(m);
       }
     }
+    const SUNPOS = new Vector3(-96, 97, -980);
+    {
+      const bill = (r, col, op) => {
+        const m = new Mesh(
+          new CircleGeometry(r, 48),
+          new MeshBasicMaterial({ color: col, transparent: op < 1, opacity: op, fog: false, depthWrite: false, toneMapped: false })
+        );
+        m.position.copy(SUNPOS);
+        m.lookAt(0, 6, 40);
+        m.renderOrder = -1;
+        scene.add(m);
+        return m;
+      };
+      bill(170, 16771504, 0.15);
+      bill(90, 16773318, 0.28);
+      bill(34, 16776690, 1);
+      const glow = new Mesh(
+        new PlaneGeometry(3200, 210),
+        // warm haze lying along the horizon
+        new MeshBasicMaterial({ color: 16767392, transparent: true, opacity: 0.3, fog: false, depthWrite: false, toneMapped: false })
+      );
+      glow.position.set(-96, 26, -1150);
+      glow.renderOrder = -1;
+      scene.add(glow);
+    }
+    {
+      const gB = new Group();
+      gB.name = "birds";
+      scene.add(gB);
+      const bm = new MeshBasicMaterial({ color: 3884112, fog: false });
+      for (let f = 0; f < 3; f++) {
+        const fl = new Group();
+        fl.position.set(-150 + f * 150, 32 + f * 7, -230 - f * 70);
+        gB.add(fl);
+        fl.scale.setScalar(2.2 + f);
+        fl.userData = { x0: fl.position.x, sp: 0.5 + f * 0.25 };
+        for (let i = 0; i < 6; i++) {
+          const b = new Group();
+          b.position.set(i % 3 * 5 - 5, (i / 3 | 0) * 3.2, i % 2 * 4);
+          fl.add(b);
+          for (const s of [-1, 1]) {
+            const w = new Mesh(new BoxGeometry(1.5, 0.12, 0.3), bm);
+            w.position.x = s * 0.8;
+            w.rotation.z = s * 0.45;
+            b.add(w);
+          }
+        }
+      }
+      scene.userData.birds = gB;
+    }
     const pmrem = new PMREMGenerator(renderer);
     scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
     scene.environmentIntensity = 0.5;
@@ -50554,8 +50604,8 @@ void main() {
     sun.shadow.bias = -5e-4;
     sun.shadow.normalBias = 0.035;
     scene.add(sun);
-    const rim = new DirectionalLight(13623541, 0.75);
-    rim.position.set(-20, 9, -26);
+    const rim = new DirectionalLight(16766882, 0.95);
+    rim.position.copy(SUNPOS).normalize().multiplyScalar(40);
     scene.add(rim);
     const fill2 = new DirectionalLight(10469608, 0.3);
     fill2.position.set(-20, 10, 22);
@@ -51040,12 +51090,12 @@ void main() {
     const gSky = G("clouds");
     {
       const topM = new MeshStandardMaterial({ color: 16777215, emissive: 16774890, emissiveIntensity: 0.55, roughness: 1, fog: false });
-      const midM = new MeshStandardMaterial({ color: 15659509, emissive: 14279662, emissiveIntensity: 0.4, roughness: 1, fog: false });
-      const baseM = new MeshStandardMaterial({ color: 12174546, emissive: 10464704, emissiveIntensity: 0.32, roughness: 1, fog: false });
-      const layers = [[9, 70, 150, 1], [10, 58, 220, 0.8], [8, 48, 290, 0.6]];
+      const midM = new MeshStandardMaterial({ color: 16514302, emissive: 15660026, emissiveIntensity: 0.5, roughness: 1, fog: false });
+      const baseM = new MeshStandardMaterial({ color: 15331061, emissive: 14147818, emissiveIntensity: 0.34, roughness: 1, fog: false });
+      const layers = [[7, 76, 430, 2.6], [8, 115, 700, 2.3], [7, 162, 1010, 2]];
       for (const [cnt, hgt, dist, ls] of layers) for (let i = 0; i < cnt; i++) {
         const c = new Group();
-        c.position.set(-260 + Math.random() * 520, hgt + Math.random() * 26, -dist - Math.random() * 40);
+        c.position.set(-900 + Math.random() * 1800, hgt + Math.random() * 34, -dist - Math.random() * 150);
         const sc = (6 + Math.random() * 7) * ls, wide = 3 + (Math.random() * 3 | 0);
         for (let k = 0; k < wide; k++) {
           const b = sph(c, sc * (0.9 + Math.random() * 0.4), (k - wide / 2) * sc * 1.1, 0, Math.random() * sc * 0.4, baseM, 12);
@@ -51069,9 +51119,9 @@ void main() {
     }
     const gLand = G("land");
     {
-      const gr = new Mesh(new PlaneGeometry(600, 420, 1, 1), plain(7643477, 1));
+      const gr = new Mesh(new PlaneGeometry(3400, 2800, 1, 1), plain(7643477, 1));
       gr.rotation.x = -Math.PI / 2;
-      gr.position.set(0, 0.3, W.z0 - 210);
+      gr.position.set(0, 0.3, W.z0 - 1400);
       gr.receiveShadow = true;
       gLand.add(gr);
       for (const sx of [-1, 1]) {
@@ -51086,12 +51136,27 @@ void main() {
       }
     }
     {
-      const hillMat = plain(7314002, 1), hillFar = plain(8825228, 1);
-      for (let i = 0; i < 7; i++) {
-        const r = 18 + Math.random() * 14;
-        const h = sph(gLand, r, -140 + i * 46 + Math.random() * 18, -r * 0.55, -150 - Math.random() * 40, i % 2 ? hillFar : hillMat, 14);
-        h.scale.y = 0.5 + Math.random() * 0.2;
-        h.castShadow = h.receiveShadow = false;
+      const BANDS = [[-520, 31, 7640911, 1], [-770, 47, 9020804, 0.8], [-1060, 64, 10729414, 0.6]];
+      for (const [bz, top, col, sat] of BANDS) {
+        const m = plain(new Color(col), 1);
+        m.fog = false;
+        for (let i = 0; i < 16; i++) {
+          const r = 120 + Math.random() * 150, x = -1500 + i * 200 + Math.random() * 110;
+          const h = sph(gLand, r, x, 0, bz - Math.random() * 90, m, 16);
+          const sy = (0.22 + Math.random() * 0.13) * sat + 0.08;
+          h.scale.set(1.3, sy, 1);
+          h.position.y = top + Math.random() * 11 - r * sy;
+          h.castShadow = h.receiveShadow = false;
+        }
+      }
+      {
+        const tm = plain(5599562, 1);
+        tm.fog = false;
+        for (let i = 0; i < 150; i++) {
+          const x = -1100 + Math.random() * 2200, hh = 8 + Math.random() * 10;
+          const c = cyl(gLand, 0.2, 2.6 + Math.random() * 2, hh, x, 25 + Math.random() * 6 + hh / 2, -512 - Math.random() * 50, tm, 5);
+          c.castShadow = c.receiveShadow = false;
+        }
       }
       const kit = KIT(), TREES = ["tree_oak", "tree_pine", "tree_fat", "tree_dark"];
       const trunk = plain(7031602, 1), leafA = plain(5208634, 1), leafB = plain(4155955, 1);
@@ -51546,7 +51611,7 @@ void main() {
       console.log("SMAA disabled: " + e.message);
     }
     Math.random = _rnd;
-    return { renderer, scene, composer, cam, P, M, sun, lamp, VW, VH, RW, RH, gtao, hemi, rim, fill: fill2, dome: scene.userData.dome };
+    return { renderer, scene, composer, cam, P, M, sun, lamp, VW, VH, RW, RH, gtao, hemi, rim, fill: fill2, dome: scene.userData.dome, birds: scene.userData.birds };
   }
   async function loadKit(base, names) {
     const L = new GLTFLoader(), kit = {};
@@ -51597,7 +51662,7 @@ void main() {
     return o;
   }
   function makeCam(VW, VH) {
-    return new PerspectiveCamera(36, VW / VH, 0.3, 420);
+    return new PerspectiveCamera(36, VW / VH, 0.3, 1800);
   }
   function shot(S, pos, tgt, fov2) {
     S.cam.position.set(pos[0], pos[1], pos[2]);

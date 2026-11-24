@@ -281,6 +281,10 @@
     // --- sky and the worker ---------------------------------------------
     const tau = skyClock(t);                                        // time runs fast in the time-lapse
     P.clouds.children.forEach((c) => { c.position.x = ((c.userData.x0 + tau * c.userData.sp * 0.6 + 400) % 800) - 400; });
+    if (SC.birds) SC.birds.children.forEach((f) => {     // v2: flocks drift across the sky band, wings beating
+      f.position.x = ((f.userData.x0 + tau * f.userData.sp + 500) % 1000) - 500;
+      f.children.forEach((b, i) => { const w = Math.sin(tau * 7 + i) * 0.5; b.children[0].rotation.z = -0.25 + w; b.children[1].rotation.z = 0.25 - w; });
+    });
     dayCycle(t);
     farStrike(t);
     buildWork(t);
