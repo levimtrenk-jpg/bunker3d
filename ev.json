@@ -7,6 +7,8 @@
  "hit": 23.603,
  "soil": 26.622,
  "doorNeed": 31.686,
+ "openDoor": 31.686,
+ "blowDoor": 39.233,
  "riser": 42.992,
  "door": 48.087,
  "seat": 55.208,

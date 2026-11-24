@@ -62,8 +62,8 @@ export function build(VW, VH, cam, SS = Number(globalThis.RQ_SS || 0.55)) {
   {                                   // sky: a vertex-coloured dome, so the gradient is exactly where we put it
     const geo = new THREE.SphereGeometry(320, 32, 24);
     const pos = geo.attributes.position, col = new Float32Array(pos.count * 3);
-    const cTop = new THREE.Color('#1757bd').convertSRGBToLinear(), cMid = new THREE.Color('#67a6ea').convertSRGBToLinear(),
-          cHaze = new THREE.Color('#dff0fb').convertSRGBToLinear(), cDn = new THREE.Color('#b9c6b4').convertSRGBToLinear();
+    const cTop = new THREE.Color('#0f4aa8').convertSRGBToLinear(), cMid = new THREE.Color('#67a6ea').convertSRGBToLinear(),
+          cHaze = new THREE.Color('#e9eef0').convertSRGBToLinear(), cDn = new THREE.Color('#b9c6b4').convertSRGBToLinear();
     const tmp = new THREE.Color();
     for (let i = 0; i < pos.count; i++) {
       const y = pos.getY(i) / 320;                       // -1 at the nadir, +1 at the zenith
@@ -423,16 +423,27 @@ export function build(VW, VH, cam, SS = Number(globalThis.RQ_SS || 0.55)) {
   // ============ LANDSCAPE: what makes it a place, not a diagram ===========
   const gSky = G('clouds');
   {
-    const cloudMat = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xffffff, emissiveIntensity: 1.35, roughness: 1, fog: false });
-    for (let i = 0; i < 16; i++) {                      // each cloud: a few squashed spheres
+    const topM = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xfff6ea, emissiveIntensity: 0.55, roughness: 1, fog: false });
+    const midM = new THREE.MeshStandardMaterial({ color: 0xeef1f5, emissive: 0xd9e3ee, emissiveIntensity: 0.4, roughness: 1, fog: false });
+    const baseM = new THREE.MeshStandardMaterial({ color: 0xb9c4d2, emissive: 0x9fadc0, emissiveIntensity: 0.32, roughness: 1, fog: false });
+    const layers = [[9, 70, 150, 1.0], [10, 58, 220, 0.8], [8, 48, 290, 0.6]];   // count, height, distance, scale: near / mid / far
+    for (const [cnt, hgt, dist, ls] of layers) for (let i = 0; i < cnt; i++) {
       const c = new THREE.Group();
-      c.position.set(-200 + Math.random() * 400, 46 + Math.random() * 44, -120 - Math.random() * 180);
-      const n = 4 + (Math.random() * 4 | 0), sc = 7 + Math.random() * 8;
-      for (let k = 0; k < n; k++) {
-        const b = sph(c, sc * (0.6 + Math.random() * 0.6), (k - n / 2) * sc * 0.9, Math.random() * sc * 0.35, Math.random() * sc * 0.5, cloudMat, 12);
-        b.scale.y = 0.55; b.castShadow = b.receiveShadow = false;
+      c.position.set(-260 + Math.random() * 520, hgt + Math.random() * 26, -dist - Math.random() * 40);
+      const sc = (6 + Math.random() * 7) * ls, wide = 3 + (Math.random() * 3 | 0);
+      for (let k = 0; k < wide; k++) {                 // flat, darker base: the underside in shadow
+        const b = sph(c, sc * (0.9 + Math.random() * 0.4), (k - wide / 2) * sc * 1.1, 0, Math.random() * sc * 0.4, baseM, 12);
+        b.scale.y = 0.32; b.castShadow = b.receiveShadow = false;
       }
-      c.userData.sp = 0.35 + Math.random() * 0.5; gSky.add(c);
+      for (let k = 0; k < wide + 1; k++) {             // the body
+        const b = sph(c, sc * (0.75 + Math.random() * 0.45), (k - wide / 2) * sc * 0.95, sc * 0.35, Math.random() * sc * 0.4, midM, 12);
+        b.scale.y = 0.7; b.castShadow = b.receiveShadow = false;
+      }
+      for (let k = 0; k < 2 + (Math.random() * 3 | 0); k++) {   // sunlit tops
+        const b = sph(c, sc * (0.6 + Math.random() * 0.4), (Math.random() - 0.5) * sc * wide * 0.8, sc * (0.7 + Math.random() * 0.35), Math.random() * sc * 0.3, topM, 12);
+        b.scale.y = 0.85; b.castShadow = b.receiveShadow = false;
+      }
+      c.userData.sp = (0.35 + Math.random() * 0.5) * ls; gSky.add(c);
     }
   }
   const gLand = G('land');
@@ -574,6 +585,24 @@ export function build(VW, VH, cam, SS = Number(globalThis.RQ_SS || 0.55)) {
     bx(ho, 1.12, 0.1, 0.14, x - 0.4, 2.9, 2.57, M.woodDk, 0.03);
     bx(ho, 0.1, 1.12, 0.14, x - 0.4, 2.9, 2.57, M.woodDk, 0.03);
   }
+
+  // ============ THE WRONG DOOR: an ordinary side door, shown so the blast can take it ==
+  const gBad = G('baddoor');
+  {
+    const fx = W.px0 + 0.02, fz = -1.35, fyy = W.floor;
+    bx(gBad, 0.12, 2.25, 0.16, fx + 0.04, fyy + 1.12, fz - 0.62, M.steelD, 0.02);   // frame
+    bx(gBad, 0.12, 2.25, 0.16, fx + 0.04, fyy + 1.12, fz + 0.62, M.steelD, 0.02);
+    bx(gBad, 0.12, 0.16, 1.4, fx + 0.04, fyy + 2.2, fz, M.steelD, 0.02);
+    const leafG = new THREE.Group(); leafG.position.set(fx + 0.06, fyy, fz); gBad.add(leafG);
+    bx(leafG, 0.07, 2.05, 1.08, 0, 1.03, 0, plain(0x8a6a48, 0.75), 0.02);           // a plain wooden door
+    bx(leafG, 0.04, 0.5, 0.5, 0.05, 1.5, 0, plain(0x6f5338, 0.8), 0.01);
+    sph(leafG, 0.05, 0.08, 1.0, 0.4, plain(0x6a6a6a, 0.4, 0.6), 8);
+    gBad.userData.leaf = leafG;
+  }
+  const gPatch = G('patch');                                                       // the doorway cast shut afterwards
+  bx(gPatch, W.wall * 0.9, 2.3, 1.42, W.px0 - W.wall / 2 + 0.02, W.floor + 1.12, -1.35, fit(M.concIn, 1.5, 2.3, 7.0, '#cfccc4'), 0.02);
+  const gPlug = G('plug');                                                         // the tunnel doorway stays solid wall until the tunnel exists
+  bx(gPlug, W.wall * 0.96, 2.1, 1.26, W.px1 + W.wall / 2, W.floor + 1.0, -2.25, fit(M.concIn, 1.3, 2.1, 7.0, '#cfccc4'), 0.02);
 
   // ============ BLAST WAVE over the sealed mound ==========================
   const gWave = G('wave');

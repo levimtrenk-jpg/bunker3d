@@ -50512,7 +50512,7 @@ void main() {
     {
       const geo = new SphereGeometry(320, 32, 24);
       const pos = geo.attributes.position, col = new Float32Array(pos.count * 3);
-      const cTop = new Color("#1757bd").convertSRGBToLinear(), cMid = new Color("#67a6ea").convertSRGBToLinear(), cHaze = new Color("#dff0fb").convertSRGBToLinear(), cDn = new Color("#b9c6b4").convertSRGBToLinear();
+      const cTop = new Color("#0f4aa8").convertSRGBToLinear(), cMid = new Color("#67a6ea").convertSRGBToLinear(), cHaze = new Color("#e9eef0").convertSRGBToLinear(), cDn = new Color("#b9c6b4").convertSRGBToLinear();
       const tmp3 = new Color();
       for (let i = 0; i < pos.count; i++) {
         const y = pos.getY(i) / 320;
@@ -50976,17 +50976,30 @@ void main() {
     }
     const gSky = G("clouds");
     {
-      const cloudMat = new MeshStandardMaterial({ color: 16777215, emissive: 16777215, emissiveIntensity: 1.35, roughness: 1, fog: false });
-      for (let i = 0; i < 16; i++) {
+      const topM = new MeshStandardMaterial({ color: 16777215, emissive: 16774890, emissiveIntensity: 0.55, roughness: 1, fog: false });
+      const midM = new MeshStandardMaterial({ color: 15659509, emissive: 14279662, emissiveIntensity: 0.4, roughness: 1, fog: false });
+      const baseM = new MeshStandardMaterial({ color: 12174546, emissive: 10464704, emissiveIntensity: 0.32, roughness: 1, fog: false });
+      const layers = [[9, 70, 150, 1], [10, 58, 220, 0.8], [8, 48, 290, 0.6]];
+      for (const [cnt, hgt, dist, ls] of layers) for (let i = 0; i < cnt; i++) {
         const c = new Group();
-        c.position.set(-200 + Math.random() * 400, 46 + Math.random() * 44, -120 - Math.random() * 180);
-        const n = 4 + (Math.random() * 4 | 0), sc = 7 + Math.random() * 8;
-        for (let k = 0; k < n; k++) {
-          const b = sph(c, sc * (0.6 + Math.random() * 0.6), (k - n / 2) * sc * 0.9, Math.random() * sc * 0.35, Math.random() * sc * 0.5, cloudMat, 12);
-          b.scale.y = 0.55;
+        c.position.set(-260 + Math.random() * 520, hgt + Math.random() * 26, -dist - Math.random() * 40);
+        const sc = (6 + Math.random() * 7) * ls, wide = 3 + (Math.random() * 3 | 0);
+        for (let k = 0; k < wide; k++) {
+          const b = sph(c, sc * (0.9 + Math.random() * 0.4), (k - wide / 2) * sc * 1.1, 0, Math.random() * sc * 0.4, baseM, 12);
+          b.scale.y = 0.32;
           b.castShadow = b.receiveShadow = false;
         }
-        c.userData.sp = 0.35 + Math.random() * 0.5;
+        for (let k = 0; k < wide + 1; k++) {
+          const b = sph(c, sc * (0.75 + Math.random() * 0.45), (k - wide / 2) * sc * 0.95, sc * 0.35, Math.random() * sc * 0.4, midM, 12);
+          b.scale.y = 0.7;
+          b.castShadow = b.receiveShadow = false;
+        }
+        for (let k = 0; k < 2 + (Math.random() * 3 | 0); k++) {
+          const b = sph(c, sc * (0.6 + Math.random() * 0.4), (Math.random() - 0.5) * sc * wide * 0.8, sc * (0.7 + Math.random() * 0.35), Math.random() * sc * 0.3, topM, 12);
+          b.scale.y = 0.85;
+          b.castShadow = b.receiveShadow = false;
+        }
+        c.userData.sp = (0.35 + Math.random() * 0.5) * ls;
         gSky.add(c);
       }
     }
@@ -51173,6 +51186,24 @@ void main() {
       bx(ho, 1.12, 0.1, 0.14, x - 0.4, 2.9, 2.57, M.woodDk, 0.03);
       bx(ho, 0.1, 1.12, 0.14, x - 0.4, 2.9, 2.57, M.woodDk, 0.03);
     }
+    const gBad = G("baddoor");
+    {
+      const fx = W.px0 + 0.02, fz = -1.35, fyy = W.floor;
+      bx(gBad, 0.12, 2.25, 0.16, fx + 0.04, fyy + 1.12, fz - 0.62, M.steelD, 0.02);
+      bx(gBad, 0.12, 2.25, 0.16, fx + 0.04, fyy + 1.12, fz + 0.62, M.steelD, 0.02);
+      bx(gBad, 0.12, 0.16, 1.4, fx + 0.04, fyy + 2.2, fz, M.steelD, 0.02);
+      const leafG = new Group();
+      leafG.position.set(fx + 0.06, fyy, fz);
+      gBad.add(leafG);
+      bx(leafG, 0.07, 2.05, 1.08, 0, 1.03, 0, plain(9071176, 0.75), 0.02);
+      bx(leafG, 0.04, 0.5, 0.5, 0.05, 1.5, 0, plain(7295800, 0.8), 0.01);
+      sph(leafG, 0.05, 0.08, 1, 0.4, plain(6974058, 0.4, 0.6), 8);
+      gBad.userData.leaf = leafG;
+    }
+    const gPatch = G("patch");
+    bx(gPatch, W.wall * 0.9, 2.3, 1.42, W.px0 - W.wall / 2 + 0.02, W.floor + 1.12, -1.35, fit(M.concIn, 1.5, 2.3, 7, "#cfccc4"), 0.02);
+    const gPlug = G("plug");
+    bx(gPlug, W.wall * 0.96, 2.1, 1.26, W.px1 + W.wall / 2, W.floor + 1, -2.25, fit(M.concIn, 1.3, 2.1, 7, "#cfccc4"), 0.02);
     const gWave = G("wave");
     {
       const wm = new MeshBasicMaterial({ color: 16773590, transparent: true, opacity: 0.5, side: DoubleSide, depthWrite: false, fog: false });

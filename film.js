@@ -34,7 +34,7 @@
     ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
   }
   // Captions in the reference style: white, no box, a few words at a time, lower third.
-  function chunks(text, n = 5) {
+  function chunks(text, n = 3) {
     const w = text.replace(/\s+/g, ' ').trim().split(' '), out = [];
     for (let i = 0; i < w.length; i += n) out.push(w.slice(i, i + n).join(' '));
     return out;
@@ -72,27 +72,29 @@
     [ev.ceiling,       [12, 4.2, 18],    [0, -2.2, -3],    42],  // the slab
     [ev.hit,           [9, 2.2, 14],     [-1.0, -2.2, -3], 44],  // the hit
     [ev.soil,          [11, 3.6, 17],    [0, -2.2, -3],    41],  // earth going on
-    [ev.doorNeed,      [-8.6, 1.2, 9.4], [-3.0, -1.4, -2.4], 42],// the way in
-    [ev.riser,         [-7.0, 4.4, 7.6], [-2.8, 0.8, -2.4], 40], // the shaft rises
+    [ev.doorNeed,      [3.6, -4.2, 9.0], [-4.6, -6.0, -1.4], 46], // an ordinary side door
+    [ev.blowDoor - 0.3,[0.4, -5.0, 4.6], [-4.8, -6.1, -1.4], 40], // pushing in as the pressure builds
+    [ev.blowDoor + 1.6,[3.0, -4.4, 8.0], [-3.0, -6.0, -1.4], 46], // the empty doorway after
+    [ev.riser,         [-5.8, 3.8, 6.8], [-2.8, 0.7, -2.4], 42], // the shaft rises through the earth
     [ev.door,          [-6.2, 4.2, 6.2], [-2.8, 1.3, -2.4], 42], // the hatch
-    [ev.seat,          [-5.4, 3.9, 5.6], [-2.8, 1.5, -2.4],  40],// it seats like a plug
-    [ev.ladder,        [0.6, -3.0, 6.2], [-2.5, -3.8, -2.4], 44],// the ladder
+    [ev.seat,          [-5.0, 3.4, 6.8], [-2.8, 1.4, -2.4], 44], // it seats like a plug
+    [ev.ladder,        [2.6, -2.4, 7.6], [-2.5, -2.8, -2.4], 46], // the ladder inside
     [ev.lock,          [-3.6, 2.0, 1.2], [-2.8, 1.3, -2.45], 30],// the bolts, tight
     [ev.sealed,        [-5.0, 3.0, 6.2], [-2.8, 1.4, -2.4],  42], // the hatch drops shut
     [ev.sealed + 2.4,  [4, -1.6, 11],    [-0.6, -4.4, -2.5], 46], // shut in with his own breath
     [ev.pipe,          [-13.5, 1.0, 17], [-6.5, -2.0, -2.2], 46], // the pipe
     [ev.sleeve,        [-12.5, -1.2, 13],[-6.7, -2.6, -2.2], 44], // concrete poured round it
     [ev.blastIn,       [-12.0, 2.2, 15], [-6.6, -1.0, -2.2], 46], // it is still a hole
-    [ev.filter,        [-11.5, -3.0, 12],[-6.4, -5.4, -2.2], 46], // the valve and the blower
+    [ev.filter,        [-6.4, -4.2, 10], [-6.5, -5.3, -2.2], 42], // the blast valve
     [ev.collapse,      [-3, 6.0, 19],    [-10.5, 1.6, -3], 46],  // the house comes down
-    [ev.tunnel,        [1.5, 3.0, 17],   [13.0, -4.6, -2.2], 52],  // the run of the tunnel on the diagonal, shaft at its end// digging the tunnel
+    [ev.tunnel,        [1.5, 3.0, 17],   [13.0, -4.6, -2.2], 52], // the tunnel's whole run, shaft at its end
     [ev.exit2,         [20.5, -0.6, 18], [16.0, -3.2, -2.2], 44],// the shaft, far out
     [ev.rain,          [10, 4.0, 19],    [0.4, 0.4, -3],   46], // winter: rain over the plot
     [ev.rain + 4.6,    [6, -2.4, 12],    [1.0, -6.0, -2.4], 46], // and water on the floor inside
     [ev.sump,          [5.6, -4.6, 7],   [3.6, -7.0, -1.5], 40], // the sump
     [ev.pump,          [5.0, -5.2, 5.4], [3.6, -6.8, -1.5], 36], // the pump
     [ev.comfort,       [6.5, -3.4, 12],  [0.4, -5.6, -2.6], 48], // light and a bed
-    [ev.done,          [15, 5, 24],      [1, -3, -3],      40],  // the whole thing
+    [ev.done,          [11, 3.2, 19],    [0.5, -3.0, -3],  42], // the whole thing
     [S.DURATION,       [-20, 10, 32],    [-2, -2, -6],     40]   // ends opposite where it began
   ];
   function camAt(t) {
@@ -212,6 +214,18 @@
     vis(P.interior, t >= ev.ceiling + 0.4); if (P.interior.visible) riseIn(P.interior, t, ev.ceiling + 0.4, 0.8, 2);
     vis(P.comfort, t >= ev.comfort); if (P.comfort.visible) riseIn(P.comfort, t, ev.comfort, 0.9, 2);
     vis(P.wave, false);
+    vis(P.baddoor, t >= ev.doorNeed - 0.4 && t < ev.riser - 0.2);
+    if (P.baddoor.visible) {
+      const lf = P.baddoor.userData.leaf, tOpen = ev.blowDoor - 1.6;
+      const rattle = clamp((t - (ev.doorNeed + 1.5)) / 3) * (t < tOpen ? 1 : 0) * Math.sin(t * 38) * 0.025;
+      const crack = clamp((t - tOpen) / 0.5) * 0.28;
+      const fly = clamp((t - ev.blowDoor) / 0.9), e2 = 1 - Math.pow(1 - fly, 2);
+      lf.rotation.y = rattle + crack + e2 * 1.9;
+      lf.rotation.z = e2 * 0.9;
+      lf.position.set(WD.px0 + 0.06 + e2 * 3.6, WD.floor + e2 * (1.4 - fly * 1.2), -1.35 + e2 * 0.6);
+    }
+    vis(P.patch, t >= ev.riser - 0.2); if (P.patch.visible) riseIn(P.patch, t, ev.riser - 0.2, 0.7, 0.6);
+    vis(P.plug, t < ev.tunnel - 0.6);
     vis(P.sump, t >= ev.sump); if (P.sump.visible) riseIn(P.sump, t, ev.sump, 0.8, 1.5);
     // --- winter: rain outside, water creeping over the floor, the pump taking it away
     const rainOn = t >= ev.rain - 0.6 && t < ev.pump + 3.0;
@@ -299,7 +313,11 @@
     }
 
     // --- escape shaft ------------------------------------------------------
-    vis(P.exit, t >= ev.tunnel); if (P.exit.visible) riseIn(P.exit, t, ev.tunnel, 1.2, 6);
+    vis(P.exit, t >= ev.tunnel); if (P.exit.visible) {
+      riseIn(P.exit, t, ev.tunnel, 1.2, 6);
+      const ld = P.exit.userData.lid;                                 // the far lid lifts open, so the way out reads
+      if (ld) ld.rotation.z = clamp((t - (ev.exit2 + 0.6)) / 1.4) * 1.5;
+    }
 
     return shake;
   }
@@ -408,7 +426,7 @@
 
   // ---------- the pressure arriving, drawn over the frame -----------------
   function blast(ctx, t) {
-    const w = t - (ev.doorNeed + 3.5);
+    const w = t - (ev.blowDoor - 0.05);
     if (w < 0 || w > 1.7) return;
     const u = clamp(w / 1.7), e = 1 - Math.pow(1 - u, 2.4);
     ctx.save();

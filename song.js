@@ -11,63 +11,73 @@ const N = Math.ceil(DURATION * SR);
 const bus = () => new Bus(N);
 const drums = bus(), bass = bus(), pad = bus(), fx = bus(), verb = bus();
 
-// --- bed: one soft chord per chapter, keyed to the events so it can never drift ---
-const CH = [
-  [ev.missiles, ['D2', 'A2', 'D3'], 520],
-  [ev.dig,      ['D2', 'F2', 'C3'], 620],
-  [ev.soil,     ['Bb1', 'F2', 'D3'], 700],
-  [ev.doorNeed, ['D2', 'A2', 'E3'], 560],
-  [ev.sealed,   ['C2', 'G2', 'D3'], 460],   // sealed in: the air goes dull
-  [ev.pipe,     ['F2', 'C3', 'A3'], 820],
-  [ev.collapse, ['Bb1', 'F2', 'Bb2'], 640],
-  [ev.done,     ['D2', 'A2', 'D3'], 1100],  // resolve
-];
-CH.forEach(([t0, ch, cutoff], i) => {
-  const t1 = i + 1 < CH.length ? CH[i + 1][0] : DURATION;
-  const dur = Math.max(1.5, t1 - t0 + 1.2);
-  for (const n of ch) {
-    const { L, R } = I.padNote(m(n), dur, { cutoff, attack: 1.1, release: 1.8 });
-    pad.addStereo(L, R, t0, 0.055);
+// --- MUSIC (rebuilt 24.11: the old drone changed chord at random moments and sounded "off") ---
+// One steady 4-bar loop at 100 BPM, Dm - Bb - F - C, that only ADDS layers as the bunker grows.
+// Layers: e-piano arpeggio from the start; soft kick + pizzicato from the dig; low strings once
+// we are sealed in; everything drops out for the collapse, then the full loop resolves to D.
+const add = (b, x, t, g) => x.L ? b.addStereo(x.L, x.R, t, g) : b.addMono(x, t, g);
+const BT = 60 / 100, BAR = BT * 4;
+const PROG = [['D3','F3','A3'], ['Bb2','D3','F3'], ['F3','A3','C4'], ['C3','E3','G3']];
+const ROOT = ['D2', 'Bb1', 'F2', 'C2'];
+const QUIET = [[ev.collapse - 0.1, ev.collapse + 2.6]];                  // music breathes out for the hit
+const quiet = t => QUIET.some(([a, b]) => t >= a && t < b);
+for (let bar = 0; bar * BAR < DURATION - 1; bar++) {
+  const t0 = bar * BAR, ch = PROG[bar % 4];
+  const end = t0 >= ev.done + 3;                                         // the last bars: only the tonic
+  const chord = end ? PROG[0] : ch;
+  for (let i = 0; i < 8; i++) {                                          // the arpeggio, 8ths
+    const t = t0 + i * BT / 2; if (t >= DURATION - 0.5 || quiet(t)) continue;
+    const n = chord[[0, 1, 2, 1, 0, 2, 1, 2][i]];
+    add(pad, I.epiano(m(n) + 12, 0.5, { index: 1.1, decay: 0.7 }), t, 0.05);
   }
-});
+  if (t0 >= ev.dig && !quiet(t0)) {                                       // pulse: the work has started
+    for (let i = 0; i < 4; i++) { const t = t0 + i * BT; if (!quiet(t)) add(drums, I.kick({ punch: 0.6, tail: 0.25 }), t, i % 2 ? 0.07 : 0.11); }
+    add(bass, I.bass(m(end ? ROOT[0] : ROOT[bar % 4]), BAR * 0.9, { sub: 1 }), t0, 0.16);
+  }
+  if (t0 >= ev.soil && !quiet(t0)) for (let i = 0; i < 4; i++)           // pizzicato answering on the off-beats
+    add(pad, I.pizz(m(chord[i % 3]) + 12, { seed: bar * 4 + i }), t0 + i * BT + BT / 2, 0.035);
+  if (t0 >= ev.sealed - 0.5 && !quiet(t0))                               // sealed in: low strings hold the chord
+    for (const n of chord) add(pad, I.strings(m(n) - 12, BAR, { attack: 0.5, release: 0.6, bright: 0.6 }), t0, 0.03);
+}
 
-// --- one low note per build step: the structure growing. No drum kit: it fought the voice ---
-[[ev.dig, 'D1'], [ev.ceiling, 'F1'], [ev.soil, 'Bb0'], [ev.pipe, 'C1'], [ev.collapse, 'Bb0'], [ev.done, 'D1']]
-  .forEach(([t, n]) => bass.addMono(I.bass(m(n), 2.4, { sub: 1 }), t, 0.3));
-
-// --- event SFX: real recordings/renders, each tied to a score event -----------
-// sfx/*.wav are rendered locally by sfxbrew (free for commercial use, no attribution);
-// the mp3s come from the media-use library (Pixabay licence, commercial use allowed).
-const SFXDIR = path.join(__dirname, 'sfx');
-const LIB = fs.existsSync(path.join(__dirname, 'sfxlib')) ? path.join(__dirname, 'sfxlib')
-          : '/root/.claude/skills/media-use/audio/assets/sfx';   // vendored, so CI has them too
-const one = (file, at, gain) => { try { const b = MIX.loadAudio(file, { at, gain, length: DURATION }); fx.addStereo(b.L, b.R, 0, 1); } catch (e) { /* missing file: skip */ } };
-const S_ = (n, at, g) => one(path.join(SFXDIR, n + '.wav'), at, g);
+// --- SOUND EFFECTS: CC0 recordings (sfxlib/cc0, licences in MANIFEST.tsv), cut tight into sfx/cut.
+// Rule: one sound per thing you SEE, landing on the frame it happens. Nothing ambient that isn't on screen.
+const CUT = path.join(__dirname, 'sfx', 'cut');
+const one = (file, at, gain) => { try { const b = MIX.loadAudio(file, { at, gain, length: DURATION }); fx.addStereo(b.L, b.R, 0, 1); } catch (e) { console.warn('missing sfx', file); } };
+const X = (n, at, g) => one(path.join(CUT, n + '.wav'), at, g);
+const LIB = fs.existsSync(path.join(__dirname, 'sfxlib')) ? path.join(__dirname, 'sfxlib') : '/root/.claude/skills/media-use/audio/assets/sfx';
 const P_ = (n, at, g) => one(path.join(LIB, n + '.mp3'), at, g);
 
-for (let i = 0; i < 3; i++) S_('whoosh', ev.missiles + 0.4 + i * 1.7, 0.30);      // rockets passing overhead
-S_('explosion', ev.shrapnel, 0.55); P_('impact-bass-1', ev.shrapnel + 0.02, 0.45); // the hut goes
-for (let i = 0; i < 7; i++) S_('footstepStone', ev.dig + 0.5 + i * 0.9, 0.22);     // digging
-S_('land', ev.ceiling + 0.15, 0.5); P_('impact-bass-2', ev.ceiling + 0.2, 0.32);   // the slab lands
-S_('explosion', ev.hit, 0.42); S_('hit', ev.hit + 0.06, 0.4);                      // a direct hit
-for (let i = 0; i < 5; i++) S_('land', ev.soil + i * 0.6, 0.3);                    // earth going on
-S_('swordClash', ev.door + 0.6, 0.35);                                             // the steel door
-P_('whoosh-cinematic', ev.sealed - 0.2, 0.28);                                     // sealed in
-P_('whoosh', ev.pipe + 0.2, 0.3);                                                  // the pipe opens
-S_('hit', ev.filter + 0.5, 0.45);                                                  // the valve slams
-S_('explosion', ev.collapse, 0.5); P_('impact-bass-1', ev.collapse + 0.03, 0.42);  // the house comes down
-for (let i = 0; i < 5; i++) S_('footstepStone', ev.exit2 + 0.4 + i * 0.8, 0.22);   // digging out
-P_('riser', ev.done - 1.6, 0.18);                                                  // into the last line
+X('wind', 0, 0.22); X('wind', 11.5, 0.12);                                // outside, before we go down
+X('whine_boom', ev.missiles + 0.3, 0.35);                                  // rockets over the hill
+X('far_boom', ev.hut - 0.2, 0.3);                                         // landing somewhere near
+X('big_boom', ev.shrapnel - 0.05, 0.55); X('hut_collapse', ev.shrapnel + 0.1, 0.5); // the hut is torn apart
+X('shovel', ev.dig + 0.2, 0.45); X('jackhammer', ev.dig + 4.2, 0.22);      // digging the pit
+X('stone_drop', ev.ceiling + 0.15, 0.6);                                   // the slab lands
+X('big_boom', ev.hit - 0.03, 0.5); X('dirt_fall', ev.hit + 0.2, 0.4);      // a direct hit on the roof
+X('dirt_fall', ev.soil, 0.45); X('dirt_fall', ev.soil + 1.4, 0.35);        // earth piled on
+X('door_rattle', ev.doorNeed + 1.5, 0.35);                                 // the plain door shakes
+X('far_boom', ev.blowDoor - 0.05, 0.55); X('metal_crash', ev.blowDoor + 0.15, 0.4); // and blows out
+X('swish', ev.riser - 0.15, 0.3); X('tunnel_rumble', ev.riser + 0.2, 0.25);  // the shaft rises
+X('stone_drop', ev.seat, 0.45);                                            // it seats
+X('squeak', ev.door + 0.2, 0.35); X('big_latch', ev.door + 1.4, 0.5);       // the steel hatch
+X('latch', ev.lock, 0.5); X('latch', ev.lock + 0.5, 0.5); X('latch', ev.lock + 1.0, 0.55); // three bolts
+X('big_latch', ev.sealed, 0.6);                                            // shut
+X('swish', ev.pipe, 0.25);                                                 // the air pipe
+X('far_boom', ev.blastIn, 0.4);                                            // a blast outside
+X('metal_crash', ev.filter + 0.5, 0.45);                                   // the valve slams
+X('big_boom', ev.collapse - 0.03, 0.6); X('house_collapse', ev.collapse + 0.15, 0.55); // the house comes down
+X('shovel', ev.tunnel + 0.3, 0.35); X('tunnel_rumble', ev.tunnel + 2.0, 0.2); // the tunnel
+X('latch', ev.exit2 + 0.6, 0.5);                                           // the far lid opens
+X('rain', ev.rain, 0.35);                                                  // rain on the mound
+X('water', ev.sump - 0.4, 0.3);                                            // water into the sump
+X('jackhammer', ev.pump, 0.08);                                            // the pump hums (very low)
 
-// --- the counting numbers on screen: a riser, ticks, and a chime on landing ---
+// --- the counting numbers on screen: ticks while counting, a chime when it lands ---
 for (const [t0, dur] of [[ev.dig + 1.1, 1.5], [ev.ceiling + 0.8, 1.4], [ev.soil + 1.0, 1.3], [ev.door + 1.5, 1.4], [ev.lock + 0.4, 0.9]]) {
-  P_('riser', t0 - 0.15, 0.22);                                                    // the scale-up under the count
   const n = Math.round(dur / 0.11);
-  for (let i = 0; i < n; i++) P_('click-soft', t0 + i * (dur / n), 0.1);           // the digits ticking
-  P_('chime', t0 + dur + 0.02, 0.2);                                               // it lands
-}
-{                                                                                   // outdoor wind bed, fading as we go underground
-  for (let t0 = 0; t0 < ev.sealed; t0 += 4.6) S_('wind', t0, 0.1 * (1 - t0 / Math.max(1, ev.sealed)));
+  for (let i = 0; i < n; i++) P_('click-soft', t0 + i * (dur / n), 0.07);
+  P_('chime', t0 + dur + 0.02, 0.16);
 }
 
 // --- the narration ---
@@ -78,7 +88,7 @@ const voice = WITH_VO ? MIX.loadAudio(path.join(__dirname, 'out', 'vo.wav'), { a
 if (voice) MIX.duck([pad, bass, drums, fx], voice, { depth: 0.78, attack: 0.02, release: 0.40, threshold: 0.02 });
 
 const stems = { ...(voice ? { voice } : {}), drums, bass, pad, fx, verb: reverb(verb, { room: 0.8, damp: 0.35 }) };
-const GAIN = { voice: 1.05, drums: 0, bass: WITH_VO ? 0.34 : 0.5, pad: WITH_VO ? 0.85 : 1.0, fx: WITH_VO ? 0.4 : 0.85, verb: 0.7 };
+const GAIN = { voice: 1.05, drums: 0.7, bass: WITH_VO ? 0.34 : 0.5, pad: WITH_VO ? 0.85 : 1.0, fx: WITH_VO ? 0.4 : 0.85, verb: 0.7 };
 const out = path.join(__dirname, 'out');
 const mix = MIX.mixdown(stems, GAIN, { stemDir: process.env.STEMS ? out : null });
 MIX.highpass(mix, 24);
