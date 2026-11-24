@@ -62,13 +62,13 @@ export function build(VW, VH, cam, SS = Number(globalThis.RQ_SS || 0.55)) {
   {                                   // sky: a vertex-coloured dome, so the gradient is exactly where we put it
     const geo = new THREE.SphereGeometry(1500, 32, 24);
     const pos = geo.attributes.position, col = new Float32Array(pos.count * 3);
-    const cTop = new THREE.Color('#0f4aa8').convertSRGBToLinear(), cMid = new THREE.Color('#67a6ea').convertSRGBToLinear(),
-          cHaze = new THREE.Color('#e9eef0').convertSRGBToLinear(), cDn = new THREE.Color('#b9c6b4').convertSRGBToLinear();
+    const cTop = new THREE.Color('#0d63c6').convertSRGBToLinear(), cMid = new THREE.Color('#3f9ae8').convertSRGBToLinear(),
+          cHaze = new THREE.Color('#cfe8fb').convertSRGBToLinear(), cDn = new THREE.Color('#b9c6b4').convertSRGBToLinear();
     const tmp = new THREE.Color();
     for (let i = 0; i < pos.count; i++) {
       const y = pos.getY(i) / 1500;                       // -1 at the nadir, +1 at the zenith
-      if (y >= 0.26) tmp.copy(cMid).lerp(cTop, Math.min(1, (y - 0.26) / 0.55));
-      else if (y >= 0.0) tmp.copy(cHaze).lerp(cMid, y / 0.26);
+      if (y >= 0.14) tmp.copy(cMid).lerp(cTop, Math.min(1, (y - 0.14) / 0.5));
+      else if (y >= 0.0) tmp.copy(cHaze).lerp(cMid, Math.pow(y / 0.14, 0.6));
       else tmp.copy(cHaze).lerp(cDn, Math.min(1, -y / 0.25));
       col[i * 3] = tmp.r; col[i * 3 + 1] = tmp.g; col[i * 3 + 2] = tmp.b;
     }
@@ -91,9 +91,9 @@ export function build(VW, VH, cam, SS = Number(globalThis.RQ_SS || 0.55)) {
         new THREE.MeshBasicMaterial({ color: col, transparent: op < 1, opacity: op, fog: false, depthWrite: false, toneMapped: false }));
       m.position.copy(SUNPOS); m.lookAt(0, 6, 40); m.renderOrder = -1; scene.add(m); return m;
     };
-    bill(170, 0xffe9b0, 0.15); bill(90, 0xfff0c6, 0.28); bill(34, 0xfffdf2, 1);
-    const glow = new THREE.Mesh(new THREE.PlaneGeometry(3200, 210),       // warm haze lying along the horizon
-      new THREE.MeshBasicMaterial({ color: 0xffd9a0, transparent: true, opacity: 0.3, fog: false, depthWrite: false, toneMapped: false }));
+    bill(40, 0xfff8dd, 0.14); bill(17, 0xfffef6, 1);
+    const glow = new THREE.Mesh(new THREE.PlaneGeometry(3000, 120),       // a whisper of haze on the horizon only
+      new THREE.MeshBasicMaterial({ color: 0xdcecff, transparent: true, opacity: 0.14, fog: false, depthWrite: false, toneMapped: false }));
     glow.position.set(-96, 26, -1150); glow.renderOrder = -1; scene.add(glow);
   }
   { // birds: three small flocks drifting in the same band of sky
@@ -120,7 +120,7 @@ export function build(VW, VH, cam, SS = Number(globalThis.RQ_SS || 0.55)) {
   scene.add(sun);
   // IBL tried and dropped: we already have a sky dome + hemisphere fill, so an environment map
   // double-counted the ambient and threw a blue cast over every shaded surface.
-  const rim = new THREE.DirectionalLight(0xffd7a2, 0.95);          // rim light: now aimed from the visible sun, so the backlight is motivated
+  const rim = new THREE.DirectionalLight(0xfff6e6, 0.55);          // rim light: now aimed from the visible sun, so the backlight is motivated
   rim.position.copy(SUNPOS).normalize().multiplyScalar(40); scene.add(rim);
   const fill = new THREE.DirectionalLight(0x9fc0e8, 0.3); fill.position.set(-20, 10, 22); scene.add(fill);
 
@@ -129,7 +129,7 @@ export function build(VW, VH, cam, SS = Number(globalThis.RQ_SS || 0.55)) {
     concIn: TEX.concrete({ rep: [2.4, 1.6], tint: '#a8a49a', wet: 1 }),
     soil: TEX.soilFace({ rep: [2.2, 1], size: 768 }),
     soil2: TEX.soilFace({ rep: [1.6, 1], seed: 12, size: 768 }),
-    grass: TEX.grass({ rep: [7, 7], tint: '#a9e27a' }),
+    grass: TEX.grass({ rep: [7, 7], tint: '#b6ef72' }),
     wood: TEX.wood({ rep: [1.5, 1] }),
     woodDk: TEX.wood({ rep: [1, 1], tint: [106, 72, 42], boards: 4 }),
     steel: TEX.metal({ rep: [1, 1], base: '#4f6c7c' }),
@@ -163,7 +163,7 @@ export function build(VW, VH, cam, SS = Number(globalThis.RQ_SS || 0.55)) {
   const gEarth = G('earth');
   // v2: six real soil horizons, each its own colour - humus, red clay, sand, gravel, grey clay, bedrock.
   // The old five were all within a few percent of the same beige, so the cut face read as one brown slab.
-  const strata = [[0, -0.8, '#6d4c2e'], [-0.8, -2.9, '#b06a39'], [-2.9, -5.0, '#cf9d60'], [-5.0, -7.0, '#9c6b3e'], [-7.0, -10.2, '#bb8a52'], [-10.2, -13.5, '#7d5c3a']];
+  const strata = [[0, -0.55, '#7a5a3a'], [-0.55, -1.9, '#b8905e'], [-1.9, -5.2, '#f6ead0'], [-5.2, -7.4, '#dcc296'], [-7.4, -10.4, '#f1e3c2'], [-10.4, -13.5, '#cdb286']];
   // Columns of ground. yTop < 0 leaves an open slot above — that is how the
   // entrance trench, the vent channel and the escape shaft stay visible.
   const column = (x0, x1, yTop, vT, vB) => {
@@ -181,7 +181,7 @@ export function build(VW, VH, cam, SS = Number(globalThis.RQ_SS || 0.55)) {
   };
   const SOLID = [[-27, -7.18], [-6.22, -5.62], [5.62, 27]];   // right of the pit the ground is solid; the tunnel is bored through it
   const SLOTS = [[6.22, 7.18, -7.7], [8.5, 10.75, -7.5]];
-  bx(gEarth, 54, 32, ZD, 0, -13.5 - 16, ZC, fit(M.soil2, 54, 32, 4.2, '#8a6b4a'), 0.04);        // bedrock: the block is not floating in the air
+  bx(gEarth, 54, 32, ZD, 0, -13.5 - 16, ZC, fit(M.soil2, 54, 32, 4.2, '#ab8e67'), 0.04);        // bedrock: the block is not floating in the air
   {
     const back = new THREE.Mesh(new THREE.BoxGeometry(620, 46, 600), fit(M.soil2, 620, 46, 4.2, '#bfab93'));
     back.position.set(0, -0.5 - 23, W.z0 - 300);                  // top stays UNDER the grass plane, or the distance renders brown
@@ -232,7 +232,7 @@ export function build(VW, VH, cam, SS = Number(globalThis.RQ_SS || 0.55)) {
       if (!SOLID.some(([a2, b2]) => x > a2 + r && x < b2 - r)) continue;
       const gv = y < -5.0 && y > -7.0;   // the gravel horizon: many more, and bigger
       if (!gv && Math.random() < 0.35) continue;
-      const st = sph(gEarth, gv ? r * 1.5 : r, x, y, W.z1 - r * 0.7, plain(new THREE.Color().setHSL(0.06 + R() * 0.05, 0.14 + R() * 0.1, 0.16 + R() * 0.2), 0.95), 7);
+      const st = sph(gEarth, gv ? r * 1.5 : r, x, y, W.z1 - r * 0.7, plain(new THREE.Color().setHSL(0.09 + R() * 0.04, 0.05 + R() * 0.05, 0.34 + R() * 0.2), 0.95), 7);
       st.scale.set(1 + R() * 0.4, 0.6 + R() * 0.35, 0.5); st.rotation.z = R() * 3; st.castShadow = false;
     }
   }
@@ -495,12 +495,12 @@ export function build(VW, VH, cam, SS = Number(globalThis.RQ_SS || 0.55)) {
   // ============ LANDSCAPE: what makes it a place, not a diagram ===========
   const gSky = G('clouds');
   {
-    const topM = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xfff6ea, emissiveIntensity: 0.55, roughness: 1, fog: false });
-    const midM = new THREE.MeshStandardMaterial({ color: 0xfbfcfe, emissive: 0xeef3fa, emissiveIntensity: 0.5, roughness: 1, fog: false });
-    const baseM = new THREE.MeshStandardMaterial({ color: 0xe9eef5, emissive: 0xd7e0ea, emissiveIntensity: 0.34, roughness: 1, fog: false });
+    const topM = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xffffff, emissiveIntensity: 0.72, roughness: 1, fog: false });
+    const midM = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xffffff, emissiveIntensity: 0.8, roughness: 1, fog: false });
+    const baseM = new THREE.MeshStandardMaterial({ color: 0xf8fbff, emissive: 0xf0f6fc, emissiveIntensity: 0.75, roughness: 1, fog: false });
     // v2: the old heights (48-150) put every cloud ABOVE the top of a 9:16 frame, which is why
     // none of them were ever on screen. In this framing the sky band is roughly 0-10 degrees up.
-    const layers = [[7, 76, 430, 2.6], [8, 115, 700, 2.3], [7, 162, 1010, 2.0]];   // count, height, distance, scale: near / mid / far
+    const layers = [[9, 82, 430, 2.2], [11, 124, 700, 2.0], [9, 172, 1010, 1.8]];   // count, height, distance, scale: near / mid / far
     for (const [cnt, hgt, dist, ls] of layers) for (let i = 0; i < cnt; i++) {
       const c = new THREE.Group();
       c.position.set(-900 + Math.random() * 1800, hgt + Math.random() * 34, -dist - Math.random() * 150);
@@ -522,7 +522,7 @@ export function build(VW, VH, cam, SS = Number(globalThis.RQ_SS || 0.55)) {
   }
   const gLand = G('land');
   {
-    const gr = new THREE.Mesh(new THREE.PlaneGeometry(3400, 2800, 1, 1), plain(0x74a155, 1));   // reaches a true horizon now, instead of ending at the far clip
+    const gr = new THREE.Mesh(new THREE.PlaneGeometry(3400, 2800, 1, 1), plain(0x6fbb3f, 1));   // reaches a true horizon now, instead of ending at the far clip
     gr.rotation.x = -Math.PI / 2; gr.position.set(0, 0.3, W.z0 - 1400); gr.receiveShadow = true; gLand.add(gr);
     for (const sx of [-1, 1]) {                                                  // grass on the block top, left and right of the pit
       const wgr = 290, cx = sx * (5.9 + wgr / 2);
@@ -534,7 +534,7 @@ export function build(VW, VH, cam, SS = Number(globalThis.RQ_SS || 0.55)) {
   {
     // v2: three ridge bands with aerial perspective. The old ridge topped out ~1.5 units
     // above the ground at 200 m away - under half a degree, i.e. invisible. These clear the horizon.
-    const BANDS = [[-520, 31, 0x74974f, 1.00], [-770, 47, 0x89a584, 0.8], [-1060, 64, 0xa3b7c6, 0.6]];
+    const BANDS = [[-520, 31, 0x6fb242, 1.00], [-770, 47, 0x82b57e, 0.8], [-1060, 64, 0xa9c6dc, 0.6]];
     for (const [bz, top, col, sat] of BANDS) {
       const m = plain(new THREE.Color(col), 1); m.fog = false;
       for (let i = 0; i < 16; i++) {

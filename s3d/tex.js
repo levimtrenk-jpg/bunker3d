@@ -119,7 +119,7 @@ export function soilFace({ rep = [1, 1], seed = 5, size = 512 } = {}) {
     const R = rng(77 + seed);
     // One uniform earth surface: the horizontal layering comes from the separate
     // stratum slabs in the scene, never painted into a map that tiles.
-    c.fillStyle = mode === 'a' ? bands[2][0] : (mode === 'h' ? '#7a7a7a' : '#d2d2d2'); c.fillRect(0, 0, S, S);
+    c.fillStyle = mode === 'a' ? '#d9c4a0' : (mode === 'h' ? '#7a7a7a' : '#d2d2d2'); c.fillRect(0, 0, S, S);
     for (let i = 0; i < 28; i++) {                        // soft blotches hide the tile seams
       const x = R() * S, y = R() * S, r = S * (0.04 + R() * 0.18), g = c.createRadialGradient(x, y, 0, x, y, r);
       const sh = R() > 0.5 ? '255,243,226' : '72,50,30';
