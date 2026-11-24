@@ -67,11 +67,12 @@
   const CAM = [
     [0.0,              [-7, 2.0, 15],    [-13, 11, -24],   50],  // sky, fire coming in
     [ev.hut,           [-9.2, 3.2, 15],  [-13.6, 2.4, -5], 42],  // the hut, the moment he says it
+    [ev.shrapnel - 1.2,[-6, 4.0, 18],    [-15, 4.0, -22],  44],  // the hut and, far behind, the strike
     [ev.shrapnel,      [-8.6, 3.6, 13],  [-13.6, 2.6, -4], 44],  // it is not enough
-    [ev.dig,           [12, 5.5, 19],    [0, -2.8, -3],    44],  // the dig starts on the word
-    [ev.ceiling,       [12, 4.2, 18],    [0, -2.2, -3],    42],  // the slab
+    [ev.dig,           [-2.5, 8.5, 36],  [-3.5, -0.5, -3], 46],  // the machine at work, the pit, the sky turning
+    [ev.ceiling,       [0, 9.0, 42],     [-1.5, -1.0, -3], 46],  // the slab poured
     [ev.hit,           [9, 2.2, 14],     [-1.0, -2.2, -3], 44],  // the hit
-    [ev.soil,          [11, 3.6, 17],    [0, -2.2, -3],    41],  // earth going on
+    [ev.soil,          [-0.5, 9.0, 43],  [-1.5, -0.5, -3], 46],  // earth dumped on, another day
     [ev.doorNeed,      [3.6, -4.2, 9.0], [-4.6, -6.0, -1.4], 46], // an ordinary side door
     [ev.blowDoor - 0.3,[0.4, -5.0, 4.6], [-4.8, -6.1, -1.4], 40], // pushing in as the pressure builds
     [ev.blowDoor + 1.6,[3.0, -4.4, 8.0], [-3.0, -6.0, -1.4], 46], // the empty doorway after
@@ -118,6 +119,116 @@
   }
   let SC = null, snapshot = null;
 
+
+  // ---------- TIME-LAPSE of the build: the machine works, the days roll by -----------
+  const TL = { dig0: ev.dig, cyc: 0.95, n: 5 };
+  TL.dig1 = TL.dig0 + TL.cyc * TL.n;                          // pit dug
+  TL.lift0 = TL.dig1 + 0.15;                                  // walls poured in three lifts
+  TL.lifts = [0, 1.1, 2.2].map((d) => TL.lift0 + d);
+  TL.roof = [ev.ceiling + 0.2, ev.ceiling + 1.4];             // the slab poured in two passes
+  TL.soil0 = ev.soil + 0.1;                                   // earth dumped on in five loads
+  const WIN = [[ev.dig - 0.2, ev.hit - 0.35, 2], [ev.soil - 0.1, ev.soil + 3.2, 1]];   // [from, to, days]
+  const ss = (a, b, x) => { const u = clamp((x - a) / (b - a)); return u * u * (3 - 2 * u); };
+  function dayProgress(t) {                                   // how many days have passed (0 outside the time-lapse)
+    let d = 0;
+    for (const [a, b, n] of WIN) if (t > a) d += n * ss(a, b, Math.min(t, b)) ;
+    return d;
+  }
+  function skyClock(t) { let x = t; for (const [a, b] of WIN) x += 26 * clamp(Math.min(t, b) - a, 0, b - a); return x; }
+  const scoopDone = (t) => { let k = 0; for (let i = 0; i < TL.n; i++) k += app(t, TL.dig0 + i * TL.cyc + 0.55, 0.2); return k / TL.n; };
+  const lifts = (t) => TL.lifts.reduce((a, t0) => a + app(t, t0, 0.7), 0) / 3;
+  const roofPour = (t) => TL.roof.reduce((a, t0) => a + app(t, t0, 0.8), 0) / 2;
+  const soilDone = (t) => { let k = 0; for (let i = 0; i < 5; i++) k += app(t, TL.soil0 + i * TL.cyc + 0.6, 0.25); return k / 5; };
+
+  const C3 = (h) => new TH.Color(h);
+  const SUN0 = Math.atan2(31, 17), SUNC = C3(0xffd892), SUNSET = C3(0xff6a2a), DOME_N = C3(0x26345a), DOME_S = C3(0xffa476), WHITE = C3(0xffffff);
+  const FOG0 = C3(0xcfe4f6), FOG_N = C3(0x2a3550), FOG_S = C3(0xe6a27c);
+  let cloudMats = null, NIGHT = 0, WARM = 0;
+  function dayCycle(t) {
+    const th = SUN0 + dayProgress(t) * Math.PI * 2, e = Math.sin(th);
+    const day = ss(-0.12, 0.35, e), warm = Math.max(0, 1 - Math.abs(e - 0.05) / 0.3) * (1 - ss(0.3, 0.5, e));
+    SC.sun.position.set(Math.cos(th) * 35, Math.max(-6, e * 35), 25);
+    SC.sun.intensity = 5.2 * ss(-0.04, 0.3, e);
+    SC.sun.color.copy(SUNC).lerp(SUNSET, warm);
+    SC.hemi.intensity = 0.14 + 0.38 * day; SC.scene.environmentIntensity = 0.5 * (0.2 + 0.8 * day);
+    SC.rim.intensity = 0.75 * (0.35 + 0.65 * day); SC.fill.intensity = 0.3 * (0.3 + 0.7 * day); NIGHT = 1 - day; WARM = warm;
+    const dc = SC.dome.material.color; dc.copy(DOME_N).lerp(WHITE, day).lerp(DOME_S, warm * 0.8);
+    SC.scene.fog.color.copy(FOG_N).lerp(FOG0, day).lerp(FOG_S, warm * 0.6);
+    if (!cloudMats) { cloudMats = new Set(); P0().clouds.traverse((m) => { if (m.material) cloudMats.add(m.material); }); cloudMats.forEach((m) => { m.userData.ei = m.emissiveIntensity; m.userData.ec = m.emissive.clone(); }); }
+    cloudMats.forEach((m) => { m.emissiveIntensity = m.userData.ei * (0.12 + 0.88 * day); m.emissive.copy(m.userData.ec).lerp(SUNSET, warm * 0.7); });
+  }
+  const P0 = () => SC.P;
+
+  // the excavator: dig in the pit, swing, dump behind; later the reverse to cover the roof
+  const KEY = { dig: [-0.45, -1.25, -0.5], curl: [-0.35, -1.7, -1.7], lift: [0.3, -1.05, -1.5], dump: [0.25, -0.8, 0.5] };
+  function kf(c, keys) {                                     // keys: [[c, [v...]], ...] eased between
+    for (let i = 0; i < keys.length - 1; i++) {
+      const [c0, a] = keys[i], [c1, b] = keys[i + 1];
+      if (c <= c1) { const u = ss(c0, c1, c); return a.map((v, j) => v + (b[j] - v) * u); }
+    }
+    return keys[keys.length - 1][1];
+  }
+  function excavator(t) {
+    const ex = SC.P.excavator.userData.ex, J = ex.userData;
+    const digPhase = t >= TL.dig0 - 0.3 && t < TL.dig1 + 0.4, soilPhase = t >= TL.soil0 - 0.3 && t < TL.soil0 + 5 * TL.cyc + 0.4;
+    let c = 0, t0 = digPhase ? TL.dig0 : TL.soil0;
+    if (digPhase || soilPhase) c = clamp((t - t0) / TL.cyc, 0, TL.n) % 1;
+    const sDig = soilPhase ? 1.5 : 0, sDump = soilPhase ? 0 : 1.5;   // where it loads, where it empties
+    const k = kf(c, [[0, [sDig, ...KEY.dig]], [0.3, [sDig, ...KEY.curl]], [0.5, [sDump, ...KEY.lift]], [0.65, [sDump, ...KEY.dump]], [0.85, [sDump, ...KEY.lift]], [1, [sDig, ...KEY.dig]]]);
+    const working = digPhase || soilPhase;
+    J.sw.rotation.y = working ? k[0] : 0.4;
+    J.boom.rotation.z = working ? k[1] : 0.35;
+    J.stick.rotation.z = working ? k[2] : -1.3;
+    J.bucket.rotation.z = working ? k[3] : -1.2;
+    J.load.visible = working && c > 0.22 && c < 0.62;
+    ex.position.y = 0.3 + (working ? Math.abs(Math.sin(c * Math.PI * 2)) * 0.03 : 0);   // it rocks as it works
+  }
+  function buildWork(t) {
+    const P = SC.P;
+    vis(P.excavator, t >= ev.dig - 0.8 && t < ev.doorNeed - 0.2);
+    if (P.excavator.visible) excavator(t);
+    const mxOn = t >= TL.lift0 - 0.6 && t < ev.hit - 0.4;
+    vis(P.mixer, mxOn);
+    if (mxOn) {
+      const U = P.mixer.userData; U.drum.rotation.x = t * 4;
+      const pours = TL.lifts.map((a) => [a, a + 0.75, -3.0]).concat(TL.roof.map((a) => [a, a + 0.85, 0.35]));
+      const pr = pours.find(([a, b]) => t >= a && t < b);
+      U.pour.visible = !!pr;
+      if (pr) { const y0 = 1.1, y1 = pr[2]; U.pour.position.set(3.5, (y0 + y1) / 2, -3.4); U.pour.scale.set(1, y0 - y1, 1); }
+    }
+  }
+  // a rocket lands far off; its fireball and shock front roll in and flatten the hut
+  function farStrike(t) {
+    const P = SC.P, F = P.farblast.userData;
+    const FI = ev.shrapnel - 0.75, D = Math.hypot(-14.6 - F.FX, -3.4 - F.FZ);
+    const on = t >= FI - 1.4 && t < ev.dig;
+    vis(P.farblast, on); if (!on) return;
+    const fall = clamp((t - (FI - 1.4)) / 1.4);
+    F.rk.visible = t < FI;
+    F.rk.position.set(F.FX + 16 * (1 - fall), 0.3 + 46 * (1 - fall * fall), F.FZ);
+    F.rk.rotation.z = -0.33;
+    const e = t - FI;
+    F.fire.visible = e > 0 && e < 0.9; if (F.fire.visible) { F.fire.scale.setScalar(1 + 11 * app(t, FI, 0.35)); F.fire.material.opacity = 0.95 * (1 - e / 0.9); }
+    F.dust.visible = e > 0.05; if (F.dust.visible) { const a = app(t, FI, 2.4); F.dust.scale.set(5 + 14 * a, 4 + 15 * a, 5 + 14 * a); F.dust.material.opacity = 0.95 * (1 - clamp((e - 1.5) / 2.5)); }
+    F.rings.forEach((r, i) => {
+      const e2 = e - i * 0.16; r.visible = e2 > 0 && e2 < 1.6;
+      if (r.visible) { const rad = 2 + (D / 0.75) * e2; r.scale.set(rad, rad, 2 + rad * 0.06); r.material.opacity = 0.9 * (1 - e2 / 1.6); }
+    });
+  }
+  // the pressure front coming through the side doorway, and the dust it drives in
+  function doorBlast(t) {
+    const P = SC.P, U = P.doorblast.userData, e = t - (ev.blowDoor - 0.05);
+    const on = e > 0 && e < 1.6; vis(P.doorblast, on); if (!on) return;
+    const x = WD.px0 - 0.8 + e * 7, r = 1.1 + e * 1.6;
+    U.front.position.set(x, WD.floor + 1.1, -1.35); U.front.scale.set(r * 0.35, r, r);
+    U.front.material.opacity = 0.55 * (1 - e / 1.6);
+    U.puffs.forEach((m) => {
+      const d = m.userData;
+      m.position.set(WD.px0 + d.sp * e, WD.floor + 1.0 + d.a * e * 1.2, -1.35 + d.b * e * 1.4);
+      m.scale.setScalar(Math.max(0.001, 1 - e / 1.6));
+    });
+  }
+
   function animate(t) {
     const P = SC.P;
     const shake = (t >= ev.shrapnel ? 0.16 : 0) * Math.exp(-(t - ev.shrapnel) * 6.0)
@@ -130,8 +241,8 @@
     if (misOn) P.missiles.children.forEach((m, i) => {
       const d = m.userData, u = ((t * d.sp * 0.36) + i * 0.143) % 1;
       m.position.set(-34 + u * 44, 26 - u * 20 + (d.y - 26) * 0.3, d.z - 14);
-      m.rotation.z = -0.36; m.scale.setScalar(0.55);
-      if (u > 0.9) m.scale.setScalar(0.55 * Math.max(0.001, (1 - u) / 0.1));
+      m.rotation.z = -0.36; m.scale.setScalar(1.3);
+      if (u > 0.9) m.scale.setScalar(1.3 * Math.max(0.001, (1 - u) / 0.1));
     });
 
     // --- hut: stands, then is blown apart -------------------------------
@@ -149,17 +260,22 @@
     }
 
     // --- the digger works the plot while the pit is dug --------------------
-    vis(P.digger, t >= ev.dig - 1.2 && t < ev.soil + 2.5);
-    if (P.digger.visible && P.digger.userData.m) {
+    vis(P.digger, false);                                  // replaced by the excavator built in code
+    if (false) {
       const m = P.digger.userData.m, u = (t - (ev.dig - 1.2)) * 0.8;
       m.position.x = -9.5 + Math.sin(u * 0.6) * 0.5;
       m.rotation.y = 1.9 + Math.sin(u * 0.6) * 0.12;
     }
 
     // --- sky and the worker ---------------------------------------------
-    P.clouds.children.forEach((c, i) => { c.position.x = ((c.position.x + t * c.userData.sp * 0.6 + 400) % 800) - 400; });
+    const tau = skyClock(t);                                        // time runs fast in the time-lapse
+    P.clouds.children.forEach((c) => { c.position.x = ((c.userData.x0 + tau * c.userData.sp * 0.6 + 400) % 800) - 400; });
+    dayCycle(t);
+    farStrike(t);
+    buildWork(t);
+    doorBlast(t);
     const digging = t >= ev.dig - 0.6 && t < ev.ceiling - 0.3;
-    vis(P.worker, t >= ev.hut - 0.3 && t < ev.soil);
+    vis(P.worker, t >= ev.hut - 0.3 && t < ev.dig - 0.6);
     if (P.worker.visible) {
       const wk = P.worker.userData.wk, u = (t - (ev.dig - 0.6)) * 1.9;
       if (digging) {                                   // a real dig cycle: lift, drive in, toss
@@ -178,16 +294,20 @@
     const AT = { pit: ev.dig, vent: ev.pipe - 0.5, tun: ev.tunnel - 0.6 };   // each hole opens only when it is made
     vis(P.pitfill, true);
     P.pitfill.children.forEach((m, i) => {
-      const k = clamp((app(t, AT[m.userData.slot] || ev.dig, 1.5) - (i % 8) * 0.05) / 0.5);
+      let k;
+      if (m.userData.slot === 'pit') {                            // dug from the top down, one bucket at a time
+        const fr = clamp((0.4 - (m.userData.y0 + m.userData.h0 / 2)) / 7.8);   // depth of this layer's top, 0..1
+        k = clamp((scoopDone(t) * 1.08 - fr) / 0.18);
+      } else k = clamp((app(t, AT[m.userData.slot] || ev.dig, 1.5) - (i % 8) * 0.05) / 0.5);
       m.visible = k < 0.999;
       m.scale.y = Math.max(0.001, 1 - k); m.position.y = m.userData.y0 - (m.userData.h0 / 2) * k;
     });
 
     // --- walls, floor, roof ---------------------------------------------
-    vis(P.pit, t >= ev.dig + 0.5);
-    if (P.pit.visible) riseIn(P.pit, t, ev.dig + 0.5, 1.1, 7);
+    vis(P.pit, t >= TL.lift0);
+    if (P.pit.visible) P.pit.position.y = -7 * (1 - lifts(t));
     vis(P.roof, t >= ev.ceiling);
-    if (P.roof.visible) { const a = app(t, ev.ceiling, 0.9); P.roof.position.y = (1 - a) * 9; P.roof.position.x = (1 - a) * -3; }
+    if (P.roof.visible) { P.roof.position.set(0, 0, 0); P.roof.scale.y = 0.12 + 0.88 * roofPour(t); }
 
     // a shell drops into the still-open pit
     const dropOn = t >= ev.drop - 0.1 && t < ev.ceiling;
@@ -196,7 +316,7 @@
 
     // --- earth cover -----------------------------------------------------
     vis(P.soilcap, t >= ev.soil);
-    if (P.soilcap.visible) { const a = app(t, ev.soil, 1.3); P.soilcap.scale.set(1, Math.max(0.02, a), 1); }
+    if (P.soilcap.visible) { P.soilcap.scale.set(1, Math.max(0.02, soilDone(t)), 1); }
 
     // --- entry riser, hatch, ladder -------------------------------------
     vis(P.entrance, t >= ev.riser - 0.3); if (P.entrance.visible) riseIn(P.entrance, t, ev.riser - 0.3, 1.2, 3);
@@ -426,11 +546,14 @@
 
   // ---------- the pressure arriving, drawn over the frame -----------------
   function blast(ctx, t) {
-    const w = t - (ev.blowDoor - 0.05);
+    blastAt(ctx, t, ev.shrapnel - 0.75, 0.25); blastAt(ctx, t, ev.blowDoor - 0.05, 1);
+  }
+  function blastAt(ctx, t, t0, fl) {
+    const w = t - t0;
     if (w < 0 || w > 1.7) return;
     const u = clamp(w / 1.7), e = 1 - Math.pow(1 - u, 2.4);
     ctx.save();
-    ctx.globalAlpha = (1 - u) * 0.5;                                  // the flash
+    ctx.globalAlpha = (1 - u) * 0.5 * fl;                             // the flash
     ctx.fillStyle = '#fff3dc'; ctx.fillRect(0, 0, W, H);
     ctx.globalAlpha = (1 - u) * 0.9;                                  // the front, racing out
     ctx.strokeStyle = '#fff6e4'; ctx.lineWidth = 26 * (1 - u) + 3;
@@ -536,6 +659,11 @@
       ctx.drawImage(SC.renderer.domElement, 0, 0, W, H);
       ctx.filter = 'none';
       dof(ctx, c.g);
+      if (NIGHT > 0.01 || WARM > 0.01) {                    // night and golden hour over the whole frame
+        ctx.save(); ctx.globalCompositeOperation = 'multiply';
+        ctx.fillStyle = `rgba(${Math.round(255 - 130 * NIGHT)},${Math.round(255 - 115 * NIGHT - 35 * WARM)},${Math.round(255 - 60 * NIGHT - 80 * WARM)},1)`;
+        ctx.fillRect(0, 0, W, H); ctx.restore();
+      }
       {                                                     // cinematic grade: warm top, cool floor, vignette
         ctx.save();
         const g = ctx.createLinearGradient(0, 0, 0, H);

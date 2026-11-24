@@ -74,12 +74,12 @@ export function build(VW, VH, cam, SS = Number(globalThis.RQ_SS || 0.55)) {
     }
     geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
     const dome = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.BackSide, fog: false, depthWrite: false, toneMapped: false }));
-    dome.renderOrder = -1; scene.add(dome);
+    dome.renderOrder = -1; scene.add(dome); scene.userData.dome = dome;
   }
   const pmrem = new THREE.PMREMGenerator(renderer);          // IBL, no network
   scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
   scene.environmentIntensity = 0.5;
-  scene.add(new THREE.HemisphereLight(0x8fb6f0, 0x7a5c38, 0.52));        // less flat fill, so the key light reads
+  const hemi = new THREE.HemisphereLight(0x8fb6f0, 0x7a5c38, 0.52); scene.add(hemi);        // less flat fill, so the key light reads
   const sun = new THREE.DirectionalLight(0xffd892, 5.2);                  // warm, low afternoon key
   sun.position.set(17, 31, 25); sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048);
   Object.assign(sun.shadow.camera, { left: -32, right: 32, top: 32, bottom: -32, near: 1, far: 110 });
@@ -443,7 +443,7 @@ export function build(VW, VH, cam, SS = Number(globalThis.RQ_SS || 0.55)) {
         const b = sph(c, sc * (0.6 + Math.random() * 0.4), (Math.random() - 0.5) * sc * wide * 0.8, sc * (0.7 + Math.random() * 0.35), Math.random() * sc * 0.3, topM, 12);
         b.scale.y = 0.85; b.castShadow = b.receiveShadow = false;
       }
-      c.userData.sp = (0.35 + Math.random() * 0.5) * ls; gSky.add(c);
+      c.userData.sp = (0.35 + Math.random() * 0.5) * ls; c.userData.x0 = c.position.x; gSky.add(c);
     }
   }
   const gLand = G('land');
@@ -512,6 +512,81 @@ export function build(VW, VH, cam, SS = Number(globalThis.RQ_SS || 0.55)) {
   // ============ DIGGER: the machine that does the earthwork ==============
   const gDig = G('digger');
   { const d = place(gDig, 'digger', -7.2, 0.3, -2.6, 2.3, 2.5); if (d) gDig.userData.m = d; }
+
+
+  // ============ EXCAVATOR built in code: every joint can move ===========
+  const gEx = G('excavator');
+  {
+    const yel = plain(0xf0b21a, 0.55, 0.1), dk = plain(0x2c2f33, 0.85), gl = plain(0x1d2a36, 0.2, 0.3), st = plain(0x8a8f94, 0.5, 0.6);
+    const ex = new THREE.Group(); ex.position.set(-8.0, 0.3, -3.2); gEx.add(ex);
+    for (const z of [-0.95, 0.95]) {                                      // tracks with rollers
+      bx(ex, 3.4, 0.62, 0.62, 0, 0.31, z, dk, 0.2);
+      for (let i = 0; i < 5; i++) cyl(ex, 0.17, 0.17, 0.66, -1.3 + i * 0.65, 0.3, z, st, 12).rotation.x = Math.PI / 2;
+    }
+    bx(ex, 1.6, 0.25, 1.6, 0, 0.72, 0, dk, 0.05);                         // slewing ring
+    const sw = new THREE.Group(); sw.position.y = 0.85; ex.add(sw);
+    bx(sw, 2.9, 0.55, 2.1, -0.35, 0.3, 0, yel, 0.12);                     // upper body
+    bx(sw, 0.8, 0.85, 2.0, -1.55, 0.55, 0, yel, 0.18);                    // counterweight
+    bx(sw, 1.2, 1.35, 0.95, 0.35, 1.2, 0.55, yel, 0.1);                   // cab
+    bx(sw, 0.06, 0.95, 0.8, 0.96, 1.3, 0.55, gl, 0.02);                   // windscreen
+    bx(sw, 0.9, 0.85, 0.05, 0.35, 1.3, 1.03, gl, 0.02);                   // side window
+    cyl(sw, 0.07, 0.07, 0.7, -1.0, 1.0, -0.6, dk, 8);                     // exhaust
+    const boom = new THREE.Group(); boom.position.set(0.55, 0.65, -0.35); sw.add(boom);
+    bx(boom, 3.5, 0.42, 0.42, 1.65, 0.0, 0, yel, 0.08);
+    cyl(boom, 0.08, 0.08, 2.4, 1.4, 0.32, 0, st, 8).rotation.z = Math.PI / 2;      // hydraulic ram
+    const stick = new THREE.Group(); stick.position.set(3.35, 0, 0); boom.add(stick);
+    bx(stick, 2.5, 0.32, 0.34, 1.15, 0, 0, yel, 0.07);
+    const bucket = new THREE.Group(); bucket.position.set(2.35, 0, 0); stick.add(bucket);
+    bx(bucket, 0.75, 0.55, 0.95, 0.3, -0.2, 0, dk, 0.08);
+    for (let i = 0; i < 4; i++) bx(bucket, 0.2, 0.08, 0.1, 0.72, -0.42, -0.36 + i * 0.24, st, 0.02);   // teeth
+    const load = sph(bucket, 0.42, 0.3, 0.05, 0, plain(0x6b4a2c, 1), 10); load.scale.set(1, 0.6, 1.1);
+    ex.userData = { sw, boom, stick, bucket, load };
+    gEx.userData.ex = ex;
+  }
+
+  // ============ CONCRETE MIXER: on site for every pour ==================
+  const gMx = G('mixer');
+  {
+    const mx = new THREE.Group(); mx.position.set(7.8, 0.3, -3.4); gMx.add(mx);
+    const red = plain(0xd8432a, 0.5, 0.1), wh = plain(0xe9e6df, 0.55, 0.1), dk = plain(0x25282c, 0.85), gl = plain(0x1d2a36, 0.2, 0.3);
+    bx(mx, 5.2, 0.35, 1.8, 0, 0.75, 0, dk, 0.05);                         // chassis
+    for (const x of [-1.9, -0.9, 1.7]) for (const z of [-0.85, 0.85]) cyl(mx, 0.45, 0.45, 0.32, x, 0.45, z, dk, 16).rotation.x = Math.PI / 2;
+    bx(mx, 1.4, 1.5, 1.9, 2.0, 1.65, 0, red, 0.15);                       // cab
+    bx(mx, 0.06, 0.7, 1.6, 2.72, 1.95, 0, gl, 0.02);
+    const drum = new THREE.Group(); drum.position.set(-0.6, 2.0, 0); drum.rotation.z = -0.22; mx.add(drum);
+    const d1 = cyl(drum, 0.9, 0.55, 2.6, 0, 0, 0, wh, 24); d1.rotation.z = Math.PI / 2;
+    for (let i = 0; i < 3; i++) { const r = cyl(drum, 0.92 - i * 0.12, 0.92 - i * 0.12, 0.12, -0.8 + i * 0.8, 0, 0, red, 24); r.rotation.z = Math.PI / 2; }
+    const chute = bx(mx, 2.6, 0.12, 0.4, -3.1, 1.25, 0, plain(0x9a9ea3, 0.5, 0.5), 0.03); chute.rotation.z = 0.3;
+    const pourM = new THREE.MeshStandardMaterial({ color: 0x9a968e, roughness: 0.6 });
+    const pour = cyl(gMx, 0.16, 0.22, 1, 0, 0, 0, pourM, 10); pour.castShadow = false;
+    gMx.userData = { drum, pour };
+  }
+
+  // ============ FAR STRIKE: a rocket lands far away, the shock front rolls in ====
+  const gFar = G('farblast');
+  {
+    const FX = -19, FZ = -48;
+    const fire = sph(gFar, 1, FX, 0.3, FZ, new THREE.MeshBasicMaterial({ color: 0xffb648, transparent: true, opacity: 0.95, fog: false }), 18);
+    const dust = sph(gFar, 1, FX, 0.3, FZ, new THREE.MeshStandardMaterial({ color: 0x5e5246, transparent: true, opacity: 0.8, roughness: 1, depthWrite: false }), 16);
+    const ringM = new THREE.MeshBasicMaterial({ color: 0xfff0d2, transparent: true, opacity: 0.6, side: THREE.DoubleSide, depthWrite: false, fog: false });
+    const rings = [0, 1].map(() => { const r = new THREE.Mesh(new THREE.TorusGeometry(1, 0.35, 8, 72), ringM.clone()); r.rotation.x = Math.PI / 2; r.position.set(FX, 0.6, FZ); gFar.add(r); return r; });
+    const rk = new THREE.Group(); gFar.add(rk);                               // the rocket that falls
+    const b = cyl(rk, 0.4, 0.4, 3.6, 0, 0, 0, M.steelD, 12);
+    const n = new THREE.Mesh(new THREE.ConeGeometry(0.42, 1.2, 12), M.steelD); n.position.y = -2.4; n.rotation.x = Math.PI; rk.add(n);
+    const tr = new THREE.Mesh(new THREE.ConeGeometry(0.45, 5, 10), new THREE.MeshBasicMaterial({ color: 0xffb04a, transparent: true, opacity: 0.85 })); tr.position.y = 4.3; rk.add(tr);
+    gFar.userData = { fire, dust, rings, rk, FX, FZ };
+  }
+
+  // ============ BLAST through the side door: the front and the dust ======
+  const gDB = G('doorblast');
+  {
+    const fm = new THREE.MeshBasicMaterial({ color: 0xfff2da, transparent: true, opacity: 0.45, side: THREE.DoubleSide, depthWrite: false, fog: false });
+    const front = new THREE.Mesh(new THREE.SphereGeometry(1, 24, 16, 0, Math.PI), fm); front.rotation.y = Math.PI / 2; gDB.add(front);
+    const dm = plain(0xa89a82, 1);
+    const puffs = [];
+    for (let i = 0; i < 40; i++) { const m = sph(gDB, 0.08 + R() * 0.16, 0, 0, 0, dm, 6); m.userData = { a: (R() - 0.5) * 1.6, b: (R() - 0.5) * 1.2, sp: 3 + R() * 5 }; puffs.push(m); }
+    gDB.userData = { front, puffs };
+  }
 
   // ============ WORKER: the viewer, doing the work on the surface =========
   const gWork = G('worker');
@@ -598,6 +673,14 @@ export function build(VW, VH, cam, SS = Number(globalThis.RQ_SS || 0.55)) {
     bx(leafG, 0.04, 0.5, 0.5, 0.05, 1.5, 0, plain(0x6f5338, 0.8), 0.01);
     sph(leafG, 0.05, 0.08, 1.0, 0.4, plain(0x6a6a6a, 0.4, 0.6), 8);
     gBad.userData.leaf = leafG;
+    {
+      const st = plain(0x8a8f94, 0.4, 0.7);
+      for (const y of [0.35, 1.0, 1.7]) bx(leafG, 0.1, 0.16, 0.06, 0.04, y, -0.54, st, 0.01);   // hinges
+      bx(leafG, 0.05, 0.3, 1.0, 0.04, 0.17, 0, st, 0.01);                                           // kick plate
+      const lamp2 = new THREE.Group(); lamp2.position.set(W.px0 + 0.12, W.floor + 2.45, -1.35); gBad.add(lamp2);
+      bx(lamp2, 0.14, 0.12, 0.34, 0, 0, 0, plain(0x2c2f33, 0.6), 0.02);
+      bx(lamp2, 0.1, 0.06, 0.26, 0.04, -0.07, 0, new THREE.MeshBasicMaterial({ color: 0xffe2a8 }), 0.02);
+    }
   }
   const gPatch = G('patch');                                                       // the doorway cast shut afterwards
   bx(gPatch, W.wall * 0.9, 2.3, 1.42, W.px0 - W.wall / 2 + 0.02, W.floor + 1.12, -1.35, fit(M.concIn, 1.5, 2.3, 7.0, '#cfccc4'), 0.02);
@@ -717,7 +800,7 @@ export function build(VW, VH, cam, SS = Number(globalThis.RQ_SS || 0.55)) {
   if (SS > 0.85) try { composer.addPass(new SMAAPass(RW, RH)); } catch (e) { console.log('SMAA disabled: ' + e.message); }
   Math.random = _rnd;
 
-  return { renderer, scene, composer, cam, P, M, sun, lamp, VW, VH, RW, RH, gtao };
+  return { renderer, scene, composer, cam, P, M, sun, lamp, VW, VH, RW, RH, gtao, hemi, rim, fill, dome: scene.userData.dome };
 }
 
 // CC0 low-poly models (Net Forge asset library) — loaded before build() so build stays synchronous

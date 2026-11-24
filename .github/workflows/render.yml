@@ -15,6 +15,9 @@ on:
       to:
         description: end second (blank = end of film)
         default: ''
+      reuse_run:
+        description: run id whose finished film supplies everything after 'to' (re-render only changed scenes)
+        default: ''
 
 jobs:
   split:
@@ -78,16 +81,29 @@ jobs:
   join:
     needs: render
     runs-on: ubuntu-latest
+    permissions: { actions: read, contents: read }
     steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '22' }
       - uses: actions/download-artifact@v4
-        with: { path: parts, merge-multiple: true }
-      - name: join the slices
+        with: { path: parts, pattern: 'part-*', merge-multiple: true }
+      - if: ${{ github.event.inputs.reuse_run != '' }}
+        uses: actions/download-artifact@v4
+        with: { name: bunker3d, path: prev, run-id: '${{ github.event.inputs.reuse_run }}', github-token: '${{ github.token }}' }
+      - name: join the slices, splice the unchanged tail, lay the full soundtrack
         run: |
-          sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
-          ls -la parts
+          sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg flac
+          mkdir -p out && ffmpeg -v error -y -i audio/vo.flac out/vo.wav && node song.js
           for f in $(ls parts/part-*.mp4 | sort); do echo "file '$PWD/$f'" >> list.txt; done
-          cat list.txt
-          ffmpeg -v error -y -f concat -safe 0 -i list.txt -c copy bunker3d.mp4
+          ffmpeg -v error -y -f concat -safe 0 -i list.txt -an -c copy head.mp4
+          if [ -f prev/bunker3d.mp4 ]; then
+            TO='${{ github.event.inputs.to }}'
+            ffmpeg -v error -y -ss "$TO" -i prev/bunker3d.mp4 -an -c:v libx264 -preset veryfast -crf 18 -pix_fmt yuv420p -r 60 tail.mp4
+            printf "file '$PWD/head.mp4'\nfile '$PWD/tail.mp4'\n" > l2.txt
+            ffmpeg -v error -y -f concat -safe 0 -i l2.txt -c copy video.mp4
+          else mv head.mp4 video.mp4; fi
+          ffmpeg -v error -y -i video.mp4 -i out/music.wav -map 0:v -map 1:a -c:v copy -c:a aac -b:a 192k -shortest -movflags +faststart bunker3d.mp4
           ffprobe -v error -show_entries format=duration,size -of default=nw=1 bunker3d.mp4
       - uses: actions/upload-artifact@v4
         with:

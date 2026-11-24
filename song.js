@@ -48,14 +48,19 @@ const X = (n, at, g) => one(path.join(CUT, n + '.wav'), at, g);
 const LIB = fs.existsSync(path.join(__dirname, 'sfxlib')) ? path.join(__dirname, 'sfxlib') : '/root/.claude/skills/media-use/audio/assets/sfx';
 const P_ = (n, at, g) => one(path.join(LIB, n + '.mp3'), at, g);
 
-X('wind', 0, 0.22); X('wind', 11.5, 0.12);                                // outside, before we go down
+X('siren', 0, 0.22);                                                        // the alarm while the rockets fly
+X('wind', 0, 0.14); X('wind', 11.5, 0.1);                                // outside, before we go down
 X('whine_boom', ev.missiles + 0.3, 0.35);                                  // rockets over the hill
-X('far_boom', ev.hut - 0.2, 0.3);                                         // landing somewhere near
+X('big_boom', ev.shrapnel - 0.75, 0.5); X('tunnel_rumble', ev.shrapnel - 0.6, 0.3); // the far strike, its shock front rolling in
 X('big_boom', ev.shrapnel - 0.05, 0.55); X('hut_collapse', ev.shrapnel + 0.1, 0.5); // the hut is torn apart
-X('shovel', ev.dig + 0.2, 0.45); X('jackhammer', ev.dig + 4.2, 0.22);      // digging the pit
-X('stone_drop', ev.ceiling + 0.15, 0.6);                                   // the slab lands
+X('swish', ev.dig - 0.25, 0.3);                                            // into the time-lapse
+for (let i = 0; i < 5; i++) { X('shovel', ev.dig + i * 0.95 + 0.1, 0.3); X('dirt_fall', ev.dig + i * 0.95 + 0.6, 0.22); }  // each bucket: bite, dump
+X('tunnel_rumble', ev.dig, 0.12); X('tunnel_rumble', ev.dig + 3, 0.12);     // the machine's engine
+for (const a of [0, 1.1, 2.2]) X('water', ev.dig + 4.9 + a, 0.16);         // three wall pours
+X('water', ev.ceiling + 0.2, 0.18); X('water', ev.ceiling + 1.4, 0.18);    // the slab poured
 X('big_boom', ev.hit - 0.03, 0.5); X('dirt_fall', ev.hit + 0.2, 0.4);      // a direct hit on the roof
-X('dirt_fall', ev.soil, 0.45); X('dirt_fall', ev.soil + 1.4, 0.35);        // earth piled on
+X('swish', ev.soil - 0.3, 0.25);
+for (let i = 0; i < 5; i++) X('dirt_fall', ev.soil + 0.7 + i * 0.95, 0.3);   // each load dumped on the roof
 X('door_rattle', ev.doorNeed + 1.5, 0.35);                                 // the plain door shakes
 X('far_boom', ev.blowDoor - 0.05, 0.55); X('metal_crash', ev.blowDoor + 0.15, 0.4); // and blows out
 X('swish', ev.riser - 0.15, 0.3); X('tunnel_rumble', ev.riser + 0.2, 0.25);  // the shaft rises
@@ -88,7 +93,7 @@ const voice = WITH_VO ? MIX.loadAudio(path.join(__dirname, 'out', 'vo.wav'), { a
 if (voice) MIX.duck([pad, bass, drums, fx], voice, { depth: 0.78, attack: 0.02, release: 0.40, threshold: 0.02 });
 
 const stems = { ...(voice ? { voice } : {}), drums, bass, pad, fx, verb: reverb(verb, { room: 0.8, damp: 0.35 }) };
-const GAIN = { voice: 1.05, drums: 0.7, bass: WITH_VO ? 0.34 : 0.5, pad: WITH_VO ? 0.85 : 1.0, fx: WITH_VO ? 0.4 : 0.85, verb: 0.7 };
+const GAIN = { voice: 1.05, drums: 0.5, bass: WITH_VO ? 0.34 : 0.36, pad: WITH_VO ? 0.85 : 0.72, fx: WITH_VO ? 0.4 : 0.85, verb: 0.7 };
 const out = path.join(__dirname, 'out');
 const mix = MIX.mixdown(stems, GAIN, { stemDir: process.env.STEMS ? out : null });
 MIX.highpass(mix, 24);
