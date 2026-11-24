@@ -69,6 +69,6 @@ const out = path.join(__dirname, 'out');
 const mix = MIX.mixdown(stems, GAIN, { stemDir: process.env.STEMS ? out : null });
 MIX.highpass(mix, 24);
 MIX.fadeOut(mix, DURATION - 1.2, DURATION);
-const M = MIX.master(mix, parseFloat(process.env.DRIVE || '0.4'), undefined, { lufs: process.env.LUFS ? parseFloat(process.env.LUFS) : (WITH_VO ? -16 : -19.5) });
+const M = MIX.master(mix, parseFloat(process.env.DRIVE || '0.4'), undefined, { lufs: process.env.LUFS ? parseFloat(process.env.LUFS) : (WITH_VO ? -16 : -27) });
 MIX.writeWav(path.join(out, 'music.wav'), mix);
 console.log(`wrote out/music.wav (${DURATION.toFixed(2)}s${M.lufs !== undefined ? `, ${M.lufs.toFixed(1)} LUFS` : ''})`);
