@@ -127,14 +127,14 @@
   TL.lifts = [0, 1.1, 2.2].map((d) => TL.lift0 + d);
   TL.roof = [ev.ceiling + 0.2, ev.ceiling + 1.4];             // the slab poured in two passes
   TL.soil0 = ev.soil + 0.1;                                   // earth dumped on in five loads
-  const WIN = [[ev.dig - 0.2, ev.hit - 0.35, 2], [ev.soil - 0.1, ev.soil + 3.2, 1]];   // [from, to, days]
+  const WIN = [[ev.dig - 0.2, ev.hit - 0.35, 1], [ev.soil - 0.1, ev.doorNeed - 0.3, 1]];   // [from, to, days]
   const ss = (a, b, x) => { const u = clamp((x - a) / (b - a)); return u * u * (3 - 2 * u); };
   function dayProgress(t) {                                   // how many days have passed (0 outside the time-lapse)
     let d = 0;
     for (const [a, b, n] of WIN) if (t > a) d += n * ss(a, b, Math.min(t, b)) ;
     return d;
   }
-  function skyClock(t) { let x = t; for (const [a, b] of WIN) x += 26 * clamp(Math.min(t, b) - a, 0, b - a); return x; }
+  function skyClock(t) { let x = t; for (const [a, b] of WIN) x += 12 * clamp(Math.min(t, b) - a, 0, b - a); return x; }
   const scoopDone = (t) => { let k = 0; for (let i = 0; i < TL.n; i++) k += app(t, TL.dig0 + i * TL.cyc + 0.55, 0.2); return k / TL.n; };
   const lifts = (t) => TL.lifts.reduce((a, t0) => a + app(t, t0, 0.7), 0) / 3;
   const roofPour = (t) => TL.roof.reduce((a, t0) => a + app(t, t0, 0.8), 0) / 2;
@@ -147,15 +147,14 @@
   function dayCycle(t) {
     const th = SUN0 + dayProgress(t) * Math.PI * 2, e = Math.sin(th);
     const day = ss(-0.12, 0.35, e), warm = Math.max(0, 1 - Math.abs(e - 0.05) / 0.3) * (1 - ss(0.3, 0.5, e));
-    SC.sun.position.set(Math.cos(th) * 35, Math.max(-6, e * 35), 25);
-    SC.sun.intensity = 5.2 * ss(-0.04, 0.3, e);
+    SC.sun.position.set(Math.cos(th) * 35, Math.max(12, e * 35), 25);   // shadows never swing under the ground
+    SC.sun.intensity = 5.2 * (0.55 + 0.45 * ss(-0.04, 0.3, e));      // the set stays lit; only the sky goes to night
     SC.sun.color.copy(SUNC).lerp(SUNSET, warm);
-    SC.hemi.intensity = 0.14 + 0.38 * day; SC.scene.environmentIntensity = 0.5 * (0.2 + 0.8 * day);
-    SC.rim.intensity = 0.75 * (0.35 + 0.65 * day); SC.fill.intensity = 0.3 * (0.3 + 0.7 * day); NIGHT = 1 - day; WARM = warm;
+    SC.hemi.intensity = 0.4 + 0.12 * day; NIGHT = 1 - day; WARM = warm;
     const dc = SC.dome.material.color; dc.copy(DOME_N).lerp(WHITE, day).lerp(DOME_S, warm * 0.8);
-    SC.scene.fog.color.copy(FOG_N).lerp(FOG0, day).lerp(FOG_S, warm * 0.6);
+    SC.scene.fog.color.copy(FOG_N).lerp(FOG0, 0.55 + 0.45 * day).lerp(FOG_S, warm * 0.5);
     if (!cloudMats) { cloudMats = new Set(); P0().clouds.traverse((m) => { if (m.material) cloudMats.add(m.material); }); cloudMats.forEach((m) => { m.userData.ei = m.emissiveIntensity; m.userData.ec = m.emissive.clone(); }); }
-    cloudMats.forEach((m) => { m.emissiveIntensity = m.userData.ei * (0.12 + 0.88 * day); m.emissive.copy(m.userData.ec).lerp(SUNSET, warm * 0.7); });
+    cloudMats.forEach((m) => { m.emissiveIntensity = m.userData.ei * (0.35 + 0.65 * day); m.emissive.copy(m.userData.ec).lerp(SUNSET, warm * 0.7); });
   }
   const P0 = () => SC.P;
 
@@ -185,11 +184,19 @@
   }
   function buildWork(t) {
     const P = SC.P;
-    vis(P.excavator, t >= ev.dig - 0.8 && t < ev.doorNeed - 0.2);
-    if (P.excavator.visible) excavator(t);
-    const mxOn = t >= TL.lift0 - 0.6 && t < ev.hit - 0.4;
+    vis(P.excavator, (t >= ev.dig - 1.6 && t < TL.dig1 + 1.4) || (t >= ev.soil - 1.0 && t < TL.soil0 + 5 * TL.cyc + 1.2));
+    if (P.excavator.visible) {
+      excavator(t);
+      const ex = P.excavator.userData.ex;                     // drives in from the left, out again when done
+      const tIn = t < ev.soil - 1.0 ? ev.dig - 1.6 : ev.soil - 1.0, tOut = t < ev.soil - 1.0 ? TL.dig1 + 0.4 : TL.soil0 + 5 * TL.cyc + 0.2;
+      ex.position.x = -8.0 - 18 * (1 - app(t, tIn, 0.9)) - 18 * ss(tOut, tOut + 1.0, t);
+    }
+    const mxOn = (t >= TL.lift0 - 1.3 && t < TL.lifts[2] + 1.8) || (t >= TL.roof[0] - 1.1 && t < TL.roof[1] + 1.8);
     vis(P.mixer, mxOn);
     if (mxOn) {
+      const mx = P.mixer.children[0], first = t < TL.roof[0] - 1.1;
+      const tIn = first ? TL.lift0 - 1.3 : TL.roof[0] - 1.1, tOut = (first ? TL.lifts[2] : TL.roof[1]) + 0.9;
+      mx.position.x = 7.8 + 20 * (1 - app(t, tIn, 0.9)) + 20 * ss(tOut, tOut + 0.9, t);   // backs in, pours, drives off
       const U = P.mixer.userData; U.drum.rotation.x = t * 4;
       const pours = TL.lifts.map((a) => [a, a + 0.75, -3.0]).concat(TL.roof.map((a) => [a, a + 0.85, 0.35]));
       const pr = pours.find(([a, b]) => t >= a && t < b);
@@ -209,7 +216,7 @@
     F.rk.rotation.z = -0.33;
     const e = t - FI;
     F.fire.visible = e > 0 && e < 0.9; if (F.fire.visible) { F.fire.scale.setScalar(1 + 11 * app(t, FI, 0.35)); F.fire.material.opacity = 0.95 * (1 - e / 0.9); }
-    F.dust.visible = e > 0.05; if (F.dust.visible) { const a = app(t, FI, 2.4); F.dust.scale.set(5 + 14 * a, 4 + 15 * a, 5 + 14 * a); F.dust.material.opacity = 0.95 * (1 - clamp((e - 1.5) / 2.5)); }
+    F.dust.visible = e > 0.05; if (F.dust.visible) { const a = app(t, FI, 2.4); F.dust.scale.set(5 + 14 * a, 4 + 15 * a, 5 + 14 * a); F.dust.material.opacity = 0.95 * (1 - clamp((e - 0.9) / 1.0)); F.dust.visible = e < 1.9; }
     F.rings.forEach((r, i) => {
       const e2 = e - i * 0.16; r.visible = e2 > 0 && e2 < 1.6;
       if (r.visible) { const rad = 2 + (D / 0.75) * e2; r.scale.set(rad, rad, 2 + rad * 0.06); r.material.opacity = 0.9 * (1 - e2 / 1.6); }
@@ -570,7 +577,7 @@
     return [(V3.x * 0.5 + 0.5) * W, (-V3.y * 0.5 + 0.5) * H, V3.z < 1];
   }
   const LABELS = [
-    [ev.dig + 2.9, 2.2, 'קירות בטון', [-5.3, -4.2, -0.2], 250, 150],
+    [TL.lifts[1], 2.2, 'קירות בטון', [-5.3, -4.2, -0.2], 250, 150],
     [ev.riser + 1.2, 2.2, 'צינור בטון עד פני הקרקע', [-2.8, 0.6, -4.3], 250, -40],
     [ev.door + 1.4, 2.2, 'מכסה פלדה עגול', [-2.8, 1.7, -4.3], 230, -200],
     [ev.seat + 0.9, 2.4, 'הלחץ סוגר אותו', [-2.8, 1.5, -4.3], -240, -200],
@@ -659,7 +666,7 @@
       ctx.drawImage(SC.renderer.domElement, 0, 0, W, H);
       ctx.filter = 'none';
       dof(ctx, c.g);
-      if (NIGHT > 0.01 || WARM > 0.01) {                    // night and golden hour over the whole frame
+      if (false) {                                          // removed: night darkened the whole frame                    // night and golden hour over the whole frame
         ctx.save(); ctx.globalCompositeOperation = 'multiply';
         ctx.fillStyle = `rgba(${Math.round(255 - 130 * NIGHT)},${Math.round(255 - 115 * NIGHT - 35 * WARM)},${Math.round(255 - 60 * NIGHT - 80 * WARM)},1)`;
         ctx.fillRect(0, 0, W, H); ctx.restore();
