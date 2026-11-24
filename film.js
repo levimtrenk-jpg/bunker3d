@@ -90,10 +90,6 @@
     [ev.collapse,      [-3, 6.0, 19],    [-10.5, 1.6, -3], 46],  // the house comes down
     [ev.tunnel,        [1.5, 3.0, 17],   [13.0, -4.6, -2.2], 52], // the tunnel's whole run, shaft at its end
     [ev.exit2,         [20.5, -0.6, 18], [16.0, -3.2, -2.2], 44],// the shaft, far out
-    [ev.rain,          [10, 4.0, 19],    [0.4, 0.4, -3],   46], // winter: rain over the plot
-    [ev.rain + 4.6,    [6, -2.4, 12],    [1.0, -6.0, -2.4], 46], // and water on the floor inside
-    [ev.sump,          [5.6, -4.6, 7],   [3.6, -7.0, -1.5], 40], // the sump
-    [ev.pump,          [5.0, -5.2, 5.4], [3.6, -6.8, -1.5], 36], // the pump
     [ev.comfort,       [6.5, -3.4, 12],  [0.4, -5.6, -2.6], 48], // light and a bed
     [ev.done,          [11, 3.2, 19],    [0.5, -3.0, -3],  42], // the whole thing
     [S.DURATION,       [-20, 10, 32],    [-2, -2, -6],     40]   // ends opposite where it began
@@ -121,10 +117,10 @@
 
 
   // ---------- TIME-LAPSE of the build: the machine works, the days roll by -----------
-  const TL = { dig0: ev.dig, cyc: 0.95, n: 5 };
+  const TL = { dig0: ev.dig, cyc: 0.45, n: 5 };
   TL.dig1 = TL.dig0 + TL.cyc * TL.n;                          // pit dug
   TL.lift0 = TL.dig1 + 0.15;                                  // walls poured in three lifts
-  TL.lifts = [0, 1.1, 2.2].map((d) => TL.lift0 + d);
+  TL.lifts = [0, 0.7, 1.4].map((d) => TL.lift0 + d);
   TL.roof = [ev.ceiling + 0.2, ev.ceiling + 1.4];             // the slab poured in two passes
   TL.soil0 = ev.soil + 0.1;                                   // earth dumped on in five loads
   const WIN = [[ev.dig - 0.2, ev.hit - 0.35, 1], [ev.soil - 0.1, ev.doorNeed - 0.3, 1]];   // [from, to, days]
