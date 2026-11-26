@@ -40,7 +40,8 @@
     return out;
   }
   const CAPS = [];
-  for (const c of S.captions) {                        // v2: 2-3 words at a time, timed by their length in letters
+  if (S.VO && S.VO.caps) S.VO.caps.forEach((c) => CAPS.push(c));
+  if (!CAPS.length) for (const c of S.captions) {                        // v2: 2-3 words at a time, timed by their length in letters
     const parts = chunks(c.text, 3), wts = parts.map((p) => p.replace(/[^\u05d0-\u05eaA-Za-z0-9]/g, '').length + 2), tot = wts.reduce((x, y) => x + y, 0);
     let acc = 0;
     parts.forEach((p, i) => { const t0 = c.t + (c.end - c.t) * acc / tot; acc += wts[i]; CAPS.push({ t: t0, end: c.t + (c.end - c.t) * acc / tot, text: p }); });
@@ -96,6 +97,7 @@
     [ev.done,          [11, 3.2, 19],    [0.5, -3.0, -3],  42], // the whole thing
     [S.DURATION,       [-20, 10, 32],    [-2, -2, -6],     40]   // ends opposite where it began
   ];
+  CAM.sort((a, b) => a[0] - b[0]);
   function camAt(t) {
     let i = 0; while (i < CAM.length - 2 && t >= CAM[i + 1][0]) i++;
     const [t0, p0, g0, f0] = CAM[i], [t1, p1, g1, f1] = CAM[i + 1];
@@ -536,9 +538,9 @@
   const COUNT = [
     [ev.dig + 1.1,     1.5, 7,  'מטר',    'עומק הבור',    [-1.2, -3.6, -0.6], 0, -250],
     [ev.ceiling + 0.8, 1.4, 70, 'ס"מ',    'בטון מזוין',   [0, 0.12, -0.6],    0, -260],
-    [ev.soil + 1.0,    1.2, 1,  'מטר',    'אדמה מעל הגג', [0, 1.5, -1.6],     0,  210],
-    [ev.door + 1.5,    1.4, 70, 'ס"מ',    'קוטר המכסה',   [-2.8, 1.72, -4.3], 0, -250],
-    [ev.lock + 0.4,    0.9, 3,  'בריחים', 'נעילה',        [-2.8, 1.45, -4.3], 250, -150],
+    [ev.soil + 2.4,    1.2, 1,  'מטר',    'אדמה מעל הגג', [0, 1.5, -1.6],     0,  210],
+    [ev.door + 0.6,    1.0, 70, 'ס"מ',    'קוטר המכסה',   [-2.8, 1.72, -4.3], 0, -250],
+    [ev.lock + 1.0,    0.9, 3,  'בריחים', 'נעילה',        [-2.8, 1.45, -4.3], 250, -150],
     [ev.tunnel + 1.0,  1.4, 10, 'מטר',    'אורך המנהרה',  [10.6, -6.0, -2.2], 0, -230],
   ];
   function counters(ctx, t) {

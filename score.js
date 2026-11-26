@@ -20,7 +20,6 @@
 
   // Each build step is pinned to the word that describes it (see retime.py).
   const ev = Object.assign({}, EV);
-  ev.ceiling = Math.min(ev.ceiling + 1.0, ev.hit - 0.9);   // pour the slab a beat after the walls
   ev.co2 = Math.min(ev.co2, ev.pipe - 1.0);
 
   const markers = {
