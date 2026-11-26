@@ -46,25 +46,34 @@
     let acc = 0;
     parts.forEach((p, i) => { const t0 = c.t + (c.end - c.t) * acc / tot; acc += wts[i]; CAPS.push({ t: t0, end: c.t + (c.end - c.t) * acc / tot, text: p }); });
   }
+  const BUSY = [];                                     // screen rects taken by labels this frame
+  const hit2 = (r, q) => r[0] < q[0] + q[2] && q[0] < r[0] + r[2] && r[1] < q[1] + q[3] && q[1] < r[1] + r[3];
   function caption(ctx, c, t) {
     if (t < c.t || t > c.end) return;
-    const pop = clamp((t - c.t) / 0.09);                // a quick pop-in, no fade-out: the next chunk simply replaces it
-    const size = 84, lines = wrap(ctx, c.text, size, W - 220), lh = size * 1.25;
-    const cy = H * 0.185 + size * 0.35 - (lines.length - 1) * lh * 0.5;
-    ctx.save(); ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic'; ctx.direction = 'rtl';
+    const pop = clamp((t - c.t) / 0.09);
+    const size = 72, lines = wrap(ctx, c.text, size, W - 200), lh = size * 1.18;
+    const bh = lines.length * lh + 40;
+    ctx.save(); ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.direction = 'rtl';
     ctx.font = `800 ${size}px Rubik, RubikL, sans-serif`;
-    const tw = Math.max(...lines.map((l) => ctx.measureText(l).width)), pw = tw + 90, ph = lines.length * lh + 34, py = cy - size * 0.92 - 6;
-    const sc = 0.92 + 0.08 * pop; ctx.translate(W / 2, py + ph / 2); ctx.scale(sc, sc); ctx.translate(-W / 2, -(py + ph / 2));
-    ctx.globalAlpha = 0.86 * pop; ctx.fillStyle = '#0d1014'; rr(ctx, W / 2 - pw / 2, py, pw, ph, 30); ctx.fill();
-    ctx.globalAlpha = pop; ctx.fillStyle = '#f5a623'; rr(ctx, W / 2 - pw / 2, py + ph - 9, pw, 9, 4); ctx.fill();   // accent strip
-    ctx.globalAlpha = pop;
+    const bw = Math.max(...lines.map((l) => ctx.measureText(l).width)) + 60;
+    let cy = H * 0.70;                                   // lower third, above the platform buttons
+    for (const y of [0.70, 0.17, 0.58, 0.40]) {          // move away from any label it would cover
+      const r = [W / 2 - bw / 2, H * y - bh / 2, bw, bh];
+      if (!BUSY.some((q) => hit2(r, q))) { cy = H * y; break; }
+    }
+    const top = cy - (lines.length - 1) * lh / 2;
+    const sc = 0.9 + 0.1 * pop; ctx.translate(W / 2, cy); ctx.scale(sc, sc); ctx.translate(-W / 2, -cy);
+    ctx.globalAlpha = pop; ctx.lineJoin = 'round';
     lines.forEach((l, i) => {
-      const y = cy + i * lh;
-      ctx.font = `800 ${size}px Rubik, RubikL, sans-serif`;
+      const y = top + i * lh;
+      ctx.shadowColor = 'rgba(0,0,0,0.55)'; ctx.shadowBlur = 18; ctx.shadowOffsetY = 4;
+      ctx.strokeStyle = '#000'; ctx.lineWidth = 13; ctx.strokeText(l, W / 2, y);
+      ctx.shadowColor = 'transparent';
       ctx.fillStyle = '#ffffff'; ctx.fillText(l, W / 2, y);
     });
     ctx.restore();
   }
+
 
   // ---------- camera: one continuous move, no cuts -----------------------
   const CAM = [
@@ -567,6 +576,7 @@
       ctx.strokeStyle = '#ffd089'; ctx.lineWidth = 3.5;
       ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(lx, ly + bh / 2 * Math.sign(sy - ly || 1)); ctx.stroke();
       ctx.fillStyle = '#ffd089'; ctx.beginPath(); ctx.arc(sx, sy, 7, 0, 7); ctx.fill();
+      if (a > 0.05) BUSY.push([Math.min(sx, lx - bw / 2) - 20, Math.min(sy, ly - bh / 2) - 20, Math.max(sx, lx + bw / 2) - Math.min(sx, lx - bw / 2) + 40, Math.max(sy, ly + bh / 2) - Math.min(sy, ly - bh / 2) + 40]);
       ctx.translate(lx, ly); ctx.scale(pop, pop); ctx.translate(-lx, -ly);
       ctx.fillStyle = 'rgba(14,16,20,0.9)'; rr(ctx, lx - bw / 2, ly - bh / 2, bw, bh, 18); ctx.fill();
       ctx.strokeStyle = 'rgba(255,208,137,0.5)'; ctx.lineWidth = 2;
@@ -631,6 +641,7 @@
       const mx = bw / 2 + 24, my = bh / 2 + 24;                       // keep the tag fully on screen
       const lx = Math.max(mx, Math.min(W - mx, sx + dx));
       const ly = Math.max(H * 0.30, Math.min(H - my - 120, sy + dy));
+      if (a > 0.05) BUSY.push([Math.min(sx, lx - bw / 2) - 20, Math.min(sy, ly - bh / 2) - 20, Math.max(sx, lx + bw / 2) - Math.min(sx, lx - bw / 2) + 40, Math.max(sy, ly + bh / 2) - Math.min(sy, ly - bh / 2) + 40]);
       ctx.save(); ctx.globalAlpha = a;
       ctx.strokeStyle = '#ffd089'; ctx.lineWidth = 3.5;
       ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(lx, ly); ctx.stroke();
@@ -721,6 +732,7 @@
         const f = clamp(1 - (t - h) / 0.1) * (t >= h ? 1 : 0);
         if (f > 0) { ctx.save(); ctx.globalAlpha = f * 0.32; ctx.fillStyle = '#ffd9a0'; ctx.fillRect(0, 0, W, H); ctx.restore(); }
       }
+      BUSY.length = 0;
       archArcs(ctx, t);
       staleAir(ctx, t);
       blast(ctx, t);
