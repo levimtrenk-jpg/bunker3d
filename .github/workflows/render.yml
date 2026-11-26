@@ -94,7 +94,7 @@ jobs:
       - name: join the slices, splice the unchanged tail, lay the full soundtrack
         run: |
           sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg flac
-          mkdir -p out && ffmpeg -v error -y -i audio/vo.flac out/vo.wav && VO=1 node song.js
+          mkdir -p out && ffmpeg -v error -y -i audio/vo.flac out/vo.wav && VO=1 node song.js && ffmpeg -v error -y -i out/music.wav -i audio/bed.flac -i out/vo.wav -filter_complex "[1:a]aresample=48000,volume=0.32[b];[2:a]aresample=48000[k];[b][k]sidechaincompress=threshold=0.04:ratio=4:attack=30:release=500[d];[0:a][d]amix=inputs=2:normalize=0:duration=first,alimiter=limit=0.89" out/mix.wav && mv out/mix.wav out/music.wav
           for f in $(ls parts/part-*.mp4 | sort); do echo "file '$PWD/$f'" >> list.txt; done
           ffmpeg -v error -y -f concat -safe 0 -i list.txt -an -c copy head.mp4
           if [ -f prev/bunker3d.mp4 ]; then
