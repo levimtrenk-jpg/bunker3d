@@ -89,7 +89,7 @@
     [ev.sleeve,        [-12.5, -1.2, 13],[-6.7, -2.6, -2.2], 44], // concrete poured round it
     [ev.blastIn,       [-12.0, 2.2, 15], [-6.6, -1.0, -2.2], 46], // it is still a hole
     [ev.filter,        [-6.4, -4.2, 10], [-6.5, -5.3, -2.2], 42], // the blast valve
-    [ev.collapse,      [-3, 6.0, 19],    [-10.5, 1.6, -3], 46],  // the house comes down
+    [ev.collapse,      [-6, 6.0, 26],    [-8, 1.6, -3.7], 52],  // the house comes down
     [ev.tunnel,        [1.5, 3.0, 17],   [13.0, -4.6, -2.2], 52], // the tunnel's whole run, shaft at its end
     [ev.exit2,         [20.5, -0.6, 18], [16.0, -3.2, -2.2], 44],// the shaft, far out
     [ev.comfort,       [6.5, -3.4, 12],  [0.4, -5.6, -2.6], 48], // light and a bed
@@ -274,7 +274,7 @@
 
     boom(P.boomHut, [-14.6, 1.0, -3.4], ev.shrapnel, t, 1.05);
     boom(P.boomRoof, [-1.0, 0.5, -3.0], ev.hit, t, 0.85, 0);
-    boom(P.boomHouse, [-10.6, 0.8, -3.0], ev.collapse, t, 0.95);
+    boom(P.boomHouse, [-2.8, 1.9, -4.3], ev.collapse, t, 0.95);
     // --- hut: stands, then is blown apart -------------------------------
     const hutGone = t >= ev.shrapnel;
     vis(P.hut, !hutGone);
@@ -449,13 +449,14 @@
     vis(P.house, t >= ev.soil - 0.4);
     if (P.house.visible) {
       P.house.scale.setScalar(app(t, ev.soil - 0.4, 0.7) || 0.01);
-      if (t < ev.collapse) { P.house.children[0].children.forEach((m, i) => { const s0 = snapshot.house[i]; m.position.copy(s0.p); m.rotation.copy(s0.r); }); }
+      if (t < ev.collapse) { P.house.children[0].scale.setScalar(1); P.house.children[0].children.forEach((m, i) => { const s0 = snapshot.house[i]; m.position.copy(s0.p); m.rotation.copy(s0.r); }); }
       else {
-        const e = Math.min(t - ev.collapse, 2.4);
+        const e = Math.min(t - ev.collapse, 2.4), sg = 1 - 0.38 * clamp(e) ** 1.6;
+        P.house.children[0].scale.setScalar(sg);       // the cabin crumples smaller as it falls, so it lands on the hatch and not on the vent
         P.house.children[0].children.forEach((m, i) => {
           const s0 = snapshot.house[i], d = (i * 37 % 13) / 13;
           const f = clamp(e - d * 0.35) ** 1.6;
-          m.position.set(s0.p.x + (d - 0.5) * 3.4 * f, Math.max(0.3, s0.p.y - s0.p.y * clamp(f * 0.9)), s0.p.z + (d - 0.5) * 1.6 * f);
+          m.position.set(s0.p.x + (10.4 / sg - 0) * f + (d - 0.5) * 0.5 * f, Math.max(1.3 * clamp(f) / sg, s0.p.y - s0.p.y * clamp(f * 0.9)), s0.p.z - 1.0 * f + (d - 0.5) * 1.4 * f);   // the cabin topples toward the hatch
           m.rotation.set(s0.r.x + (d - 0.5) * 2.6 * f, s0.r.y, s0.r.z + (d - 0.5) * 2.2 * f);
         });
       }
@@ -464,8 +465,8 @@
     if (P.rubble.visible) {
       const e = t - ev.collapse;
       P.rubble.children.forEach((m) => {
-        const d = m.userData, y = Math.max(0.35, 2.5 + d.up * e - 9.81 * e * e * 0.5);
-        m.position.set(-11.0 + Math.cos(d.a) * d.sp * e * 0.6, y, -3.2 + Math.sin(d.a) * d.sp * e * 0.3 + d.z);  // lands on the shaft
+        const d = m.userData, y = Math.max(1.75, 2.5 + d.up * e - 9.81 * e * e * 0.5);
+        m.position.set(-2.8 + Math.cos(d.a) * Math.min(d.sp * e * 0.6, 1.5), y + Math.abs(d.z) * 0.22, -4.3 + Math.sin(d.a) * Math.min(d.sp * e * 0.3, 0.7) + d.z * 0.3);  // piles up on the round entrance hatch
         m.rotation.set(d.rx * Math.min(e, 1.6), d.a, d.rz * Math.min(e, 1.6));
       });
     }
