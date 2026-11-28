@@ -738,7 +738,7 @@
       blast(ctx, t);
       counters(ctx, t);
       labels(ctx, t);
-      /* captions are a separate SRT file now, not burned in */
+      for (const cp of CAPS) caption(ctx, cp, t);
     },
     post: { vignette: 0.38, grain: 0.03 },
   });
