@@ -4,6 +4,7 @@ on:
     inputs:
       segments: { description: machines, default: '18' }
       name: { description: output file name, default: 'film' }
+      rq: { description: page query e.g. lang=en, default: '' }
 jobs:
   split:
     runs-on: ubuntu-latest
@@ -22,6 +23,7 @@ jobs:
       - run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg flac && nproc
       - run: mkdir -p out && ffmpeg -v error -y -i audio/final.flac out/music.wav
       - name: render slice
+        env: { RQ: '${{ inputs.rq }}' }
         run: |
           N=${{ inputs.segments }}
           read A B < <(node -e "const n=$N,i=${{ matrix.seg }},S=require('./score.js'),D=S.DURATION,F=S.FPS;const f=k=>Math.round(D*F*k/n)/F;console.log(f(i).toFixed(4),(i===n-1?D:f(i+1)).toFixed(4))")
@@ -33,6 +35,7 @@ jobs:
   join:
     needs: render
     runs-on: ubuntu-latest
+    permissions: { contents: write }
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
@@ -45,3 +48,10 @@ jobs:
           ffprobe -v error -show_entries format=duration,size -of default=nw=1 "${{ inputs.name }}.mp4"
       - uses: actions/upload-artifact@v4
         with: { name: '${{ inputs.name }}', path: '${{ inputs.name }}.mp4', retention-days: 14 }
+      - name: publish to the renders branch
+        run: |
+          git config user.name render-bot; git config user.email render-bot@users.noreply.github.com
+          mkdir -p /tmp/pub && cp "${{ inputs.name }}.mp4" /tmp/pub/
+          git fetch -q origin renders && git checkout -q -B renders origin/renders || git checkout -q --orphan renders
+          git rm -rq --cached . 2>/dev/null || true
+          cp /tmp/pub/*.mp4 . && git add "${{ inputs.name }}.mp4" && git commit -qm "render ${{ inputs.name }}" && git push -q origin renders
