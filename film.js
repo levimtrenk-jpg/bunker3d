@@ -1,3 +1,4 @@
+const LANG=(new URLSearchParams(location.search).get('lang')||'he');const I18N={"כבלי פלדה": "Steel ropes", "משקולת נגדית": "Counterweight", "כבל הוויסת": "Governor rope", "ויסת מהירות": "Speed governor", "צבתות בטיחות": "Safety clamps", "בולם שמן": "Oil buffer", "סליל חשמלי": "Electric coil", "נעלי בלם": "Brake shoes", "קפיצים": "Springs", "נסיעות במעלית בשנה · ארה״ב": "Elevator rides per year · USA", "מקרי מוות בשנה, בממוצע": "Deaths per year, on average", "רובם טכנאים": "Mostly technicians", "משקל הכבל (לפי היצרן)": "Rope weight (manufacturer data)", "פלדה": "Steel", "סיבי פחמן": "Carbon fiber", "מה עושים כשהמעלית נופלת?": "What do you do when an elevator falls?", "החשמל קרס, והמעלית שלך מתחילה ליפול.": "The power cuts out, and your elevator starts to fall.", "מה אתה עושה? לקפוץ רגע לפני הנחיתה? לשכב על הרצפה?": "What do you do? Jump right before impact? Lie on the floor?", "בוא נעצור רגע, ונחזור אחורה.": "Let's pause for a second and rewind.", "אתה בטח חושב שהמעלית תלויה על כבל אחד. אבל יש בה בין ארבעה לשמונה, וכל אחד מהם לבד יכול להחזיק אותה.": "You probably think it hangs on one cable. It has four to eight, and each one alone can hold it.", "ובצד השני תלויה משקולת נגדית, כדי שהמנוע ירים רק את ההפרש.": "On the other side hangs a counterweight, so the motor only lifts the difference.", "אבל נניח שאיכשהו כולם נקרעו.": "But say somehow they all snapped.", "עכשיו אתה בנפילה חופשית.": "Now you're in free fall.", "אבל גלגלת קטנה למעלה מרגישה שאתה מהיר מדי, ועוצרת כבל נפרד.": "But a small wheel up top senses you're too fast and grabs a separate rope.", "הכבל מושך צבתות פלדה שננעלות על המסילות, ואתה עוצר.": "That rope pulls steel clamps that lock onto the rails, and you stop.", "ואם גם זה נכשל, בתחתית הפיר מחכים בולמים. הם בולעים את המכה.": "And if that fails too, buffers wait at the bottom of the shaft. They absorb the hit.", "אבל רגע. מה עם החשמל שנפל? על המנוע יש בלם, שמופעל ברגע שהחשמל נעלם.": "But wait. What about the power cut? The motor has a brake that clamps the moment power is gone.", "הדבר שחשבת שיפיל אותך, הוא בדיוק הדבר שעוצר אותך.": "The thing you thought would drop you is exactly what stops you.", "בארצות הברית נוסעים במעלית שמונה עשר מיליארד פעם בשנה.": "In the US, people ride elevators eighteen billion times a year.", "מתים בה בממוצע עשרים ושבעה אנשים, רובם טכנאים.": "On average twenty-seven people die, mostly technicians.", "אז מה עושים כשהמעלית נופלת? כלום. המעלית כבר עצרה בלעדיך.": "So what do you do when an elevator falls? Nothing. It already stopped without you."};const T=(x)=>LANG==='he'?x:(I18N[x]||x);
 // The film: camera, cuts, 2D finishing (freeze, rewind tape, bloom), callout labels, numbers and captions.
 // The world is s3d/elev3d.js; the timeline is score.js. Pure function of t.
 (function () {
@@ -135,7 +136,7 @@
   const FONT = (w, sz) => `${w} ${sz}px Rubik, sans-serif`;
   function rr(ctx, x, y, w, h, r) { ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); }
   function strokeText(ctx, str, x, y, size, col = '#fff', w = 900, lw = 14) {
-    ctx.font = FONT(w, size); ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.direction = 'rtl'; ctx.lineJoin = 'round';
+    ctx.font = FONT(w, size); ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.direction = (LANG==='he'?'rtl':'ltr'); ctx.lineJoin = 'round';
     ctx.shadowColor = 'rgba(0,0,0,0.6)'; ctx.shadowBlur = 20; ctx.shadowOffsetY = 4; ctx.strokeStyle = '#000'; ctx.lineWidth = lw; ctx.strokeText(str, x, y);
     ctx.shadowColor = 'transparent'; ctx.fillStyle = col; ctx.fillText(str, x, y);
   }
@@ -146,15 +147,15 @@
     return [(v.x + 1) / 2 * W, (1 - v.y) / 2 * H, v.z < 1 && Math.abs(v.x) < 1.2 && Math.abs(v.y) < 1.2];
   }
   const LABELS = [
-    [ev.rewEnd + 1.2, ev.rewEnd + 5.0, (s) => [0.5, s.carY + 2.3, RZ], 'כבלי פלדה', [-260, -170]],
-    [ev.cw + 2.6, ev.snap - 1.1, (s) => [0.65, s.cwY + 1.0, E.CWZ], 'משקולת נגדית', [-300, -260]],
-    [ev.govRope + 0.2, ev.link - 0.1, (s) => [E.GX - E.GR, s.carY + 3.0, E.GZ], 'כבל הוויסת', [-330, 60]],
-    [ev.govClose + 0.3, ev.govRope - 0.1, (s) => [E.GX + 0.06, E.GY + 0.16, E.GZ + 0.08], 'ויסת מהירות', [-300, -330]],
-    [ev.clamp - 0.2, ev.stop, (s) => [1.74, s.carY - 1.1, RZ], 'צבתות בטיחות', [-330, -300]],
-    [ev.p3 + 1.2, ev.p3end - 0.1, (s) => [0.7, -7.1 - s.buffer, RZ], 'בולם שמן', [-300, -320]],
-    [ev.brakeShot + 0.4, ev.cut2 - 0.3, (s) => [2.0, E.TOP + 0.95, E.SZ], 'סליל חשמלי', [-320, -260]],
-    [ev.brakeShot + 0.4, ev.p4pull, (s) => [1.6, E.TOP + 0.55, E.SZ + 0.2], 'נעלי בלם', [-340, 230]],
-    [ev.cut2 + 0.2, ev.p4pull, (s) => [1.92, E.TOP + 1.4, E.SZ], 'קפיצים', [200, -260]],
+    [ev.rewEnd + 1.2, ev.rewEnd + 5.0, (s) => [0.5, s.carY + 2.3, RZ], T('כבלי פלדה'), [-260, -170]],
+    [ev.cw + 2.6, ev.snap - 1.1, (s) => [0.65, s.cwY + 1.0, E.CWZ], T('משקולת נגדית'), [-300, -260]],
+    [ev.govRope + 0.2, ev.link - 0.1, (s) => [E.GX - E.GR, s.carY + 3.0, E.GZ], T('כבל הוויסת'), [-330, 60]],
+    [ev.govClose + 0.3, ev.govRope - 0.1, (s) => [E.GX + 0.06, E.GY + 0.16, E.GZ + 0.08], T('ויסת מהירות'), [-300, -330]],
+    [ev.clamp - 0.2, ev.stop, (s) => [1.74, s.carY - 1.1, RZ], T('צבתות בטיחות'), [-330, -300]],
+    [ev.p3 + 1.2, ev.p3end - 0.1, (s) => [0.7, -7.1 - s.buffer, RZ], T('בולם שמן'), [-300, -320]],
+    [ev.brakeShot + 0.4, ev.cut2 - 0.3, (s) => [2.0, E.TOP + 0.95, E.SZ], T('סליל חשמלי'), [-320, -260]],
+    [ev.brakeShot + 0.4, ev.p4pull, (s) => [1.6, E.TOP + 0.55, E.SZ + 0.2], T('נעלי בלם'), [-340, 230]],
+    [ev.cut2 + 0.2, ev.p4pull, (s) => [1.92, E.TOP + 1.4, E.SZ], T('קפיצים'), [200, -260]],
   ];
   function labels(ctx, t, s) {
     for (const [a, b, fn, text, off] of LABELS) {
@@ -168,7 +169,7 @@
       ctx.font = FONT(800, 46); const tw = ctx.measureText(text).width + 44, th = 70;
       ctx.fillStyle = 'rgba(12,14,18,0.88)'; rr(ctx, lx - tw / 2, ly - th / 2, tw, th, 16); ctx.fill();
       ctx.strokeStyle = '#F57423'; ctx.lineWidth = 3; ctx.stroke();
-      ctx.font = FONT(800, 46); ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.direction = 'rtl'; ctx.fillStyle = '#fff'; ctx.fillText(text, lx, ly + 2);
+      ctx.font = FONT(800, 46); ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.direction = (LANG==='he'?'rtl':'ltr'); ctx.fillStyle = '#fff'; ctx.fillText(text, lx, ly + 2);
       ctx.restore();
     }
   }
@@ -180,27 +181,27 @@
       const k = sm((t - ev.p5 - 0.3) / 0.3) * (1 - sm((t - ev.techs + 0.3) / 0.3)), c = io((t - ev.p5 - 0.3) / 2.6);
       ctx.save(); ctx.globalAlpha = k;
       strokeText(ctx, fmt(18e9 * c), W / 2, H * 0.24, 118, '#F57423', 900, 16);
-      strokeText(ctx, 'נסיעות במעלית בשנה · ארה״ב', W / 2, H * 0.24 + 110, 52, '#fff', 800, 10);
+      strokeText(ctx, T('נסיעות במעלית בשנה · ארה״ב'), W / 2, H * 0.24 + 110, 52, '#fff', 800, 10);
       ctx.restore();
     }
     if (t >= ev.techs + 0.2 && t < ev.p6) {
       const k = sm((t - ev.techs - 0.2) / 0.3) * (1 - sm((t - ev.p6 + 0.3) / 0.3)), c = io((t - ev.techs - 0.2) / 1.0);
       ctx.save(); ctx.globalAlpha = k;
       strokeText(ctx, String(Math.round(27 * c)), W / 2, H * 0.19, 190, '#F57423', 900, 18);
-      strokeText(ctx, 'מקרי מוות בשנה, בממוצע', W / 2, H * 0.19 + 140, 52, '#fff', 800, 10);
-      if (t > ev.techs + 1.6) strokeText(ctx, 'רובם טכנאים', W / 2, H * 0.19 + 215, 58, '#ffd08a', 900, 10);
+      strokeText(ctx, T('מקרי מוות בשנה, בממוצע'), W / 2, H * 0.19 + 140, 52, '#fff', 800, 10);
+      if (t > ev.techs + 1.6) strokeText(ctx, T('רובם טכנאים'), W / 2, H * 0.19 + 215, 58, '#ffd08a', 900, 10);
       ctx.restore();
     }
     if (t >= ev.carbon + 3.0 && t < ev.p6) {
       const k = sm((t - ev.carbon - 3.0) / 0.3) * (1 - sm((t - ev.p6 + 0.3) / 0.3)), c = io((t - ev.carbon - 3.2) / 1.2);
       const x0 = 150, wFull = W - 300, y0 = H * 0.17;
       ctx.save(); ctx.globalAlpha = k;
-      strokeText(ctx, 'משקל הכבל (לפי היצרן)', W / 2, y0, 48, '#fff', 800, 10);
-      for (const [i, name, frac, col] of [[0, 'פלדה', 1, '#9aa3ad'], [1, 'סיבי פחמן', 0.2, '#F57423']]) {
+      strokeText(ctx, T('משקל הכבל (לפי היצרן)'), W / 2, y0, 48, '#fff', 800, 10);
+      for (const [i, name, frac, col] of [[0, T('פלדה'), 1, '#9aa3ad'], [1, T('סיבי פחמן'), 0.2, '#F57423']]) {
         const yy = y0 + 90 + i * 120;
         ctx.fillStyle = 'rgba(12,14,18,0.8)'; rr(ctx, x0, yy, wFull, 70, 14); ctx.fill();
         ctx.fillStyle = col; rr(ctx, x0 + wFull * (1 - frac * c), yy, Math.max(1, wFull * frac * c), 70, 14); ctx.fill();
-        ctx.font = FONT(900, 44); ctx.textAlign = 'right'; ctx.textBaseline = 'middle'; ctx.direction = 'rtl'; ctx.fillStyle = '#fff';
+        ctx.font = FONT(900, 44); ctx.textAlign = 'right'; ctx.textBaseline = 'middle'; ctx.direction = (LANG==='he'?'rtl':'ltr'); ctx.fillStyle = '#fff';
         ctx.fillText(name, x0 + wFull - 20, yy + 37);
       }
       ctx.restore();
@@ -209,23 +210,23 @@
 
   // ---------- captions: the approved narration, a few words at a time ----------
   const LINES = [
-    [1.0, 3.0, 'החשמל קרס, והמעלית שלך מתחילה ליפול.'],
-    [3.1, 6.1, 'מה אתה עושה? לקפוץ רגע לפני הנחיתה? לשכב על הרצפה?'],
-    [6.3, 8.0, 'בוא נעצור רגע, ונחזור אחורה.'],
-    [8.2, 14.2, 'אתה בטח חושב שהמעלית תלויה על כבל אחד. אבל יש בה בין ארבעה לשמונה, וכל אחד מהם לבד יכול להחזיק אותה.'],
-    [14.4, 18.1, 'ובצד השני תלויה משקולת נגדית, כדי שהמנוע ירים רק את ההפרש.'],
-    [18.3, 20.0, 'אבל נניח שאיכשהו כולם נקרעו.'],
-    [20.2, 21.6, 'עכשיו אתה בנפילה חופשית.'],
-    [21.9, 25.6, 'אבל גלגלת קטנה למעלה מרגישה שאתה מהיר מדי, ועוצרת כבל נפרד.'],
-    [25.8, 28.8, 'הכבל מושך צבתות פלדה שננעלות על המסילות, ואתה עוצר.'],
-    [29.4, 33.1, 'ואם גם זה נכשל, בתחתית הפיר מחכים בולמים. הם בולעים את המכה.'],
-    [33.6, 38.0, 'אבל רגע. מה עם החשמל שנפל? על המנוע יש בלם, שמופעל ברגע שהחשמל נעלם.'],
-    [38.3, 41.3, 'הדבר שחשבת שיפיל אותך, הוא בדיוק הדבר שעוצר אותך.'],
-    [41.8, 44.8, 'בארצות הברית נוסעים במעלית שמונה עשר מיליארד פעם בשנה.'],
-    [45.0, 47.7, 'מתים בה בממוצע עשרים ושבעה אנשים, רובם טכנאים.'],
-    [48.2, 52.0, 'אז מה עושים כשהמעלית נופלת? כלום. המעלית כבר עצרה בלעדיך.'],
+    [1.0, 3.0, T('החשמל קרס, והמעלית שלך מתחילה ליפול.')],
+    [3.1, 6.1, T('מה אתה עושה? לקפוץ רגע לפני הנחיתה? לשכב על הרצפה?')],
+    [6.3, 8.0, T('בוא נעצור רגע, ונחזור אחורה.')],
+    [8.2, 14.2, T('אתה בטח חושב שהמעלית תלויה על כבל אחד. אבל יש בה בין ארבעה לשמונה, וכל אחד מהם לבד יכול להחזיק אותה.')],
+    [14.4, 18.1, T('ובצד השני תלויה משקולת נגדית, כדי שהמנוע ירים רק את ההפרש.')],
+    [18.3, 20.0, T('אבל נניח שאיכשהו כולם נקרעו.')],
+    [20.2, 21.6, T('עכשיו אתה בנפילה חופשית.')],
+    [21.9, 25.6, T('אבל גלגלת קטנה למעלה מרגישה שאתה מהיר מדי, ועוצרת כבל נפרד.')],
+    [25.8, 28.8, T('הכבל מושך צבתות פלדה שננעלות על המסילות, ואתה עוצר.')],
+    [29.4, 33.1, T('ואם גם זה נכשל, בתחתית הפיר מחכים בולמים. הם בולעים את המכה.')],
+    [33.6, 38.0, T('אבל רגע. מה עם החשמל שנפל? על המנוע יש בלם, שמופעל ברגע שהחשמל נעלם.')],
+    [38.3, 41.3, T('הדבר שחשבת שיפיל אותך, הוא בדיוק הדבר שעוצר אותך.')],
+    [41.8, 44.8, T('בארצות הברית נוסעים במעלית שמונה עשר מיליארד פעם בשנה.')],
+    [45.0, 47.7, T('מתים בה בממוצע עשרים ושבעה אנשים, רובם טכנאים.')],
+    [48.2, 52.0, T('אז מה עושים כשהמעלית נופלת? כלום. המעלית כבר עצרה בלעדיך.')],
   ];
-  const CAPS = [[0, 0.95, 'מה עושים כשהמעלית נופלת?', 1]];
+  const CAPS = [[0, 0.95, T('מה עושים כשהמעלית נופלת?'), 1]];
   for (const [a, b, text] of LINES) {                           // chunks of up to 4 words, split at punctuation, timed by letters
     const words = text.split(' '), parts = []; let cur = [];
     for (const w of words) { cur.push(w); if (cur.length >= 4 || (/[,.?]$/.test(w) && cur.length >= 2)) { parts.push(cur.join(' ')); cur = []; } }
@@ -237,7 +238,7 @@
   function caption(ctx, c, t) {
     const [a, b, text, hook] = c; if (t < a || t >= b) return;
     const pop = clamp((t - a) / 0.08), size = hook ? 84 : 74;
-    ctx.save(); ctx.font = FONT(900, size); ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.direction = 'rtl';
+    ctx.save(); ctx.font = FONT(900, size); ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.direction = (LANG==='he'?'rtl':'ltr');
     const words = text.split(' '), lines = []; let ln = '';
     for (const w of words) { const tr = ln ? ln + ' ' + w : w; if (ctx.measureText(tr).width > W - 220 && ln) { lines.push(ln); ln = w; } else ln = tr; }
     lines.push(ln);
@@ -260,7 +261,7 @@
       finish(ctx, src, t);
       labels(ctx, t, s);
       numbers(ctx, t);
-      /* captions go in a separate SRT file, not burned in */
+      for (const cp of CAPS) caption(ctx, cp, t);
     },
     post: { vignette: 0.42, grain: 0.035 },
     fadeOut: 0,
