@@ -1,0 +1,47 @@
+name: render-fast
+on:
+  workflow_dispatch:
+    inputs:
+      segments: { description: machines, default: '18' }
+      name: { description: output file name, default: 'film' }
+jobs:
+  split:
+    runs-on: ubuntu-latest
+    outputs: { matrix: '${{ steps.p.outputs.m }}' }
+    steps:
+      - id: p
+        run: echo "m=$(node -e "console.log(JSON.stringify([...Array(${{ inputs.segments }}).keys()]))")" >> $GITHUB_OUTPUT
+  render:
+    needs: split
+    runs-on: ubuntu-latest
+    strategy: { fail-fast: false, matrix: { seg: '${{ fromJson(needs.split.outputs.matrix) }}' } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '22' }
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg flac && nproc
+      - run: mkdir -p out && ffmpeg -v error -y -i audio/final.flac out/music.wav
+      - name: render slice
+        run: |
+          N=${{ inputs.segments }}
+          read A B < <(node -e "const n=$N,i=${{ matrix.seg }},S=require('./score.js'),D=S.DURATION,F=S.FPS;const f=k=>Math.round(D*F*k/n)/F;console.log(f(i).toFixed(4),(i===n-1?D:f(i+1)).toFixed(4))")
+          echo "slice $A .. $B"
+          node engine/render.js clip $A $B
+          mv out/clip_*.mp4 "out/part-$(printf %02d ${{ matrix.seg }}).mp4"
+      - uses: actions/upload-artifact@v4
+        with: { name: 'part-${{ matrix.seg }}', path: out/part-*.mp4, retention-days: 3 }
+  join:
+    needs: render
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with: { path: parts, pattern: 'part-*', merge-multiple: true }
+      - run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg flac
+          for f in $(ls parts/part-*.mp4 | sort); do echo "file '$PWD/$f'" >> list.txt; done
+          ffmpeg -v error -y -f concat -safe 0 -i list.txt -an -c copy video.mp4
+          ffmpeg -v error -y -i video.mp4 -i audio/final.flac -map 0:v -map 1:a -c:v copy -c:a aac -b:a 192k -shortest -movflags +faststart "${{ inputs.name }}.mp4"
+          ffprobe -v error -show_entries format=duration,size -of default=nw=1 "${{ inputs.name }}.mp4"
+      - uses: actions/upload-artifact@v4
+        with: { name: '${{ inputs.name }}', path: '${{ inputs.name }}.mp4', retention-days: 14 }
