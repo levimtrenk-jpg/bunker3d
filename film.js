@@ -16,7 +16,7 @@
   // ---------- text -------------------------------------------------------
   const hText = (ctx, str, x, y, size, col, weight = 900) => {
     ctx.font = `${weight} ${size}px Rubik, RubikL, sans-serif`;
-    ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic'; ctx.direction = 'rtl';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic'; ctx.direction = 'ltr';
     ctx.fillStyle = col; ctx.fillText(str, x, y);
   };
   const tw = (ctx, str, size) => { ctx.font = `900 ${size}px Rubik, RubikL, sans-serif`; return ctx.measureText(str).width; };
@@ -53,7 +53,7 @@
     const pop = clamp((t - c.t) / 0.09);
     const size = 72, lines = wrap(ctx, c.text, size, W - 200), lh = size * 1.18;
     const bh = lines.length * lh + 40;
-    ctx.save(); ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.direction = 'rtl';
+    ctx.save(); ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.direction = 'ltr';
     ctx.font = `800 ${size}px Rubik, RubikL, sans-serif`;
     const bw = Math.max(...lines.map((l) => ctx.measureText(l).width)) + 60;
     let cy = H * 0.70;                                   // lower third, above the platform buttons
@@ -537,20 +537,20 @@
       ctx.moveTo(x - 9, y1 - 13); ctx.lineTo(x, y1); ctx.lineTo(x + 9, y1 - 13); ctx.stroke();
     }
     ctx.font = `600 ${Math.round(W * 0.042)}px Rubik, RubikL, sans-serif`;
-    ctx.direction = 'rtl'; ctx.textAlign = 'center'; ctx.fillStyle = '#ffffff';
-    ctx.fillText('הלחץ דוחף אותו אל המסגרת', cx, cy + R * 1.5);
+    ctx.direction = 'ltr'; ctx.textAlign = 'center'; ctx.fillStyle = '#ffffff';
+    ctx.fillText('The pressure pushes it into the frame', cx, cy + R * 1.5);
     ctx.restore();
   }
 
 
   // ---------- numbers that count up, with the riser under them ------------
   const COUNT = [
-    [ev.dig + 1.1,     1.5, 7,  'מטר',    'עומק הבור',    [-1.2, -3.6, -0.6], 0, -250],
-    [ev.ceiling + 0.8, 1.4, 70, 'ס"מ',    'בטון מזוין',   [0, 0.12, -0.6],    0, -260],
-    [ev.soil + 2.4,    1.2, 1,  'מטר',    'אדמה מעל הגג', [0, 1.5, -1.6],     0,  210],
-    [ev.door + 0.6,    1.0, 70, 'ס"מ',    'קוטר המכסה',   [-2.8, 1.72, -4.3], 0, -250],
-    [ev.lock + 1.0,    0.9, 3,  'בריחים', 'נעילה',        [-2.8, 1.45, -4.3], 250, -150],
-    [ev.tunnel + 1.0,  1.4, 10, 'מטר',    'אורך המנהרה',  [10.6, -6.0, -2.2], 0, -230],
+    [ev.dig + 1.1,     1.5, 7,  'm',    'pit depth',    [-1.2, -3.6, -0.6], 0, -250],
+    [ev.ceiling + 0.8, 1.4, 70, 'cm',    'reinforced concrete',   [0, 0.12, -0.6],    0, -260],
+    [ev.soil + 2.4,    1.2, 1,  'm',    'soil above roof', [0, 1.5, -1.6],     0,  210],
+    [ev.door + 0.6,    1.0, 70, 'cm',    'hatch diameter',   [-2.8, 1.72, -4.3], 0, -250],
+    [ev.lock + 1.0,    0.9, 3,  'bolts', 'locking',        [-2.8, 1.45, -4.3], 250, -150],
+    [ev.tunnel + 1.0,  1.4, 10, 'm',    'tunnel length',  [10.6, -6.0, -2.2], 0, -230],
   ];
   function counters(ctx, t) {
     for (const [t0, dur, target, unit, cap, wp, dx, dy] of COUNT) {
@@ -581,7 +581,7 @@
       ctx.fillStyle = 'rgba(14,16,20,0.9)'; rr(ctx, lx - bw / 2, ly - bh / 2, bw, bh, 18); ctx.fill();
       ctx.strokeStyle = 'rgba(255,208,137,0.5)'; ctx.lineWidth = 2;
       rr(ctx, lx - bw / 2, ly - bh / 2, bw, bh, 18); ctx.stroke();
-      ctx.textBaseline = 'alphabetic'; ctx.direction = 'rtl';
+      ctx.textBaseline = 'alphabetic'; ctx.direction = 'ltr';
       const baseY = ly - bh / 2 + nsz * 0.98 + 10;
       ctx.textAlign = 'left';
       ctx.font = `800 ${nsz}px Rubik, RubikL, sans-serif`;
@@ -621,15 +621,15 @@
     return [(V3.x * 0.5 + 0.5) * W, (-V3.y * 0.5 + 0.5) * H, V3.z < 1];
   }
   const LABELS = [
-    [TL.lifts[1], 2.2, 'קירות בטון', [-5.3, -4.2, -0.2], 250, 150],
-    [ev.riser + 1.2, 2.2, 'צינור בטון עד פני הקרקע', [-2.8, 0.6, -4.3], 250, -40],
-    [ev.door + 1.4, 2.2, 'מכסה פלדה עגול', [-2.8, 1.7, -4.3], 230, -200],
-    [ev.seat + 0.9, 2.4, 'הלחץ סוגר אותו', [-2.8, 1.5, -4.3], -240, -200],
-    [ev.sleeve + 0.7, 2.4, 'בטון יצוק סביב הצינור', [-6.7, -2.4, -2.2], 250, -120],
-    [ev.filter + 1.0, 2.4, 'שסתום הדף', [-6.1, -5.6, -1.6], -250, -170],
-    [ev.exit2 + 1.0, 2.4, 'פיר יציאה', [16.3, -0.6, -2.2], -230, -170],
-    [ev.sump + 1.0, 2.2, 'בור ניקוז', [3.6, -7.0, -1.5], 240, -190],
-    [ev.pump + 0.9, 2.0, 'משאבה', [3.6, -6.6, -1.5], -230, -150],
+    [TL.lifts[1], 2.2, 'concrete walls', [-5.3, -4.2, -0.2], 250, 150],
+    [ev.riser + 1.2, 2.2, 'concrete pipe up to ground level', [-2.8, 0.6, -4.3], 250, -40],
+    [ev.door + 1.4, 2.2, 'round steel hatch', [-2.8, 1.7, -4.3], 230, -200],
+    [ev.seat + 0.9, 2.4, 'pressure seals it', [-2.8, 1.5, -4.3], -240, -200],
+    [ev.sleeve + 0.7, 2.4, 'concrete poured around the pipe', [-6.7, -2.4, -2.2], 250, -120],
+    [ev.filter + 1.0, 2.4, 'blast valve', [-6.1, -5.6, -1.6], -250, -170],
+    [ev.exit2 + 1.0, 2.4, 'exit shaft', [16.3, -0.6, -2.2], -230, -170],
+    [ev.sump + 1.0, 2.2, 'drain pit', [3.6, -7.0, -1.5], 240, -190],
+    [ev.pump + 0.9, 2.0, 'pump', [3.6, -6.6, -1.5], -230, -150],
   ];
   function labels(ctx, t) {
     for (const [t0, dur, text, wp, dx, dy] of LABELS) {
@@ -738,7 +738,7 @@
       blast(ctx, t);
       counters(ctx, t);
       labels(ctx, t);
-      for (const cp of CAPS) caption(ctx, cp, t);
+      /* captions are a separate SRT file now, not burned in */
     },
     post: { vignette: 0.38, grain: 0.03 },
   });

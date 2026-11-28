@@ -8,7 +8,7 @@
   const VO = node ? require('./vo.json') : globalThis.VO;
   const EV = node ? require('./ev.json') : globalThis.EV;   // event times, derived from the spoken words
 
-  const FPS = 60;   // 60 keeps constant camera motion smooth
+  const FPS = 30;   // 60 keeps constant camera motion smooth
   const FORMAT = U.pickFormat('9:16');
   const [W, H] = U.formatSize(FORMAT);
   const SAFE = U.safeArea(W, H);
