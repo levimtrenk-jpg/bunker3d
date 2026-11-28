@@ -8,22 +8,22 @@
   const FORMAT = U.pickFormat('9:16');
   const [W, H] = U.formatSize(FORMAT);
   const SAFE = U.safeArea(W, H);
-  const DURATION = 54.5;
+  const DURATION = 63.32;
 
   const ev = {
     // part 1: the fall you imagine (slowed while he asks), rewind, ropes, counterweight, the tear
-    cut: 1.0, fall: 1.8, slow: 3.0, freeze: 6.3, thaw: 7.0, rewEnd: 8.0,
-    ropes: 8.0, cw: 14.4, snap: 19.6, plunge: 20.4,
+    cut: 0.6, fall: 0.96, slow: 2.4, freeze: 6.0, thaw: 7.14, rewEnd: 8.78,
+    ropes: 8.78, cw: 17.26, snap: 23.5, plunge: 24.27,
     // part 2: governor senses overspeed, stops its rope, the rope pulls the safety gear (real physics, slow motion)
-    govClose: 21.9, trip: 24.0, govRope: 24.4, link: 25.8, clamp: 27.0, stop: 28.8,
+    govClose: 26.22, trip: 28.59, govRope: 29.04, link: 30.4, clamp: 32.01, stop: 34.42,
     // part 3: the buffers (a car at running speed past the bottom floor, ropes intact)
-    p3: 29.2, contact: 31.9, p3end: 33.4,
+    p3: 34.42, contact: 37.83, p3end: 39.46,
     // part 4: the brake
-    p4: 33.4, brakeShot: 35.3, cut2: 37.4, p4pull: 38.2,
+    p4: 39.46, brakeShot: 41.73, cut2: 44.54, p4pull: 45.34,
     // part 5: numbers
-    p5: 41.6, techs: 44.9, carbon: 999,
+    p5: 49.72, techs: 53.74, carbon: 999,
     // part 6: the ending, loops to frame one
-    p6: 48.0, doors: 50.6,
+    p6: 56.98, doors: 60.16,
   };
   const G = 12;                    // the imagined fall (part 1) reads better a touch faster than 9.8
   const G2 = 9.81;                 // real physics for part 2
